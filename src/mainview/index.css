@@ -1,0 +1,2676 @@
+/* 野帳（測量野帳）を下敷きにした配色。盤面は方眼紙、会話は表紙色の帯で綴じる。目立たせるのは付箋だけ。 */
+:root {
+	--cover: #3e4a3a; /* 野帳の表紙 */
+	--cover-ink: #e6eadf;
+	--cover-dim: #a9b3a2;
+	--cover-line: #4f5c4a;
+	--paper: #edefe9; /* 方眼紙 */
+	--paper-2: #f6f7f3;
+	--ink: #1f2836;
+	--graphite: #646a62;
+	--rule: #cdd2c6;
+	--grid: rgba(77, 99, 120, 0.07);
+	--shu: #b5412c; /* 朱。期限切れ・今日期限・承認待ちだけ */
+	--fusen: #efd36a; /* 付箋 */
+	--fusen-ink: #3b3216;
+	--focus: #2f6d8f;
+	--ok: #2f7d4f; /* 緑。WBS の進捗線の先行だけ */
+
+	--sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+	--serif: "Hiragino Mincho ProN", "Yu Mincho", serif;
+	--step--1: 12px;
+	--step-0: 14px;
+	--step-1: 15px;
+	--step-2: 18px;
+	--step-3: 24px;
+	color-scheme: light;
+}
+
+/* ダーク固定 */
+	:root {
+	--cover: #232b20;
+	--cover-ink: #dfe4d8;
+	--cover-dim: #8f9988;
+	--cover-line: #333d2f;
+	--paper: #1b201c;
+	--paper-2: #222823;
+	--ink: #e2e6dc;
+	--graphite: #9ba196;
+	--rule: #353d34;
+	--grid: rgba(180, 200, 220, 0.045);
+	--shu: #e27560;
+	--fusen: #d8bd57;
+	--fusen-ink: #2b2410;
+	--focus: #7fb7d6;
+	--ok: #5fb383;
+	color-scheme: dark;
+}
+
+* {
+	box-sizing: border-box;
+}
+html,
+body {
+	margin: 0;
+	height: 100%;
+	background: var(--paper);
+	color: var(--ink);
+	font-family: var(--sans);
+	font-size: var(--step-0);
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+	font-variant-numeric: tabular-nums;
+}
+button {
+	font: inherit;
+	color: inherit;
+	cursor: pointer;
+}
+:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
+}
+.spacer {
+	flex: 1;
+}
+[hidden] {
+	display: none !important;
+}
+
+.app {
+	display: grid;
+	grid-template-columns: minmax(560px, 1fr) minmax(400px, 34vw);
+	height: 100vh;
+}
+
+/* ───── 共通の部品 ───── */
+button.quiet {
+	background: none;
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+	padding: 2px 10px;
+	font-size: var(--step--1);
+	color: var(--graphite);
+	white-space: nowrap;
+}
+button.quiet:hover {
+	color: var(--ink);
+	border-color: var(--graphite);
+}
+button.link {
+	background: none;
+	border: 0;
+	padding: 0;
+	color: var(--focus);
+	font-size: inherit;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 2px;
+}
+button.primary {
+	background: var(--ink);
+	color: var(--paper);
+	border: 0;
+	border-radius: 6px;
+	padding: 4px 16px;
+}
+.none {
+	color: var(--graphite);
+	font-size: var(--step--1);
+	margin: 4px 0;
+}
+.n {
+	font-size: var(--step--1);
+	color: var(--graphite);
+	font-weight: 400;
+	margin-left: 8px;
+}
+.due {
+	font-size: var(--step--1);
+	color: var(--graphite);
+	white-space: nowrap;
+}
+.due.hot {
+	color: var(--shu);
+	font-weight: 600;
+}
+button.ask,
+button.deep {
+	flex: none;
+	background: none;
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+	font-size: var(--step--1);
+	padding: 0 8px;
+	line-height: 22px;
+	color: var(--graphite);
+}
+button.ask:hover {
+	background: var(--fusen);
+	color: var(--fusen-ink);
+	border-color: var(--fusen);
+}
+button.deep:hover {
+	background: var(--cover);
+	color: var(--cover-ink);
+	border-color: var(--cover);
+}
+
+/* ───── 盤面 ───── */
+.board {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	min-width: 0;
+	/* 5mm 方眼 */
+	background-color: var(--paper);
+	background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+	background-size: 19px 19px;
+}
+.board-head {
+	height: 64px;
+	flex: none;
+	display: flex;
+	align-items: flex-end;
+	gap: 16px;
+	padding: 0 32px 12px 88px; /* 信号機ボタンの分 */
+}
+.date {
+	margin: 0;
+	font-family: var(--serif);
+	font-size: var(--step-3);
+	font-weight: 500;
+	line-height: 1;
+	letter-spacing: 0.02em;
+}
+.facts {
+	margin: 0;
+	font-size: var(--step--1);
+	color: var(--graphite);
+	white-space: nowrap;
+}
+.alert-chip {
+	background: none;
+	border: 1px solid var(--shu);
+	color: var(--shu);
+	border-radius: 6px;
+	padding: 2px 10px;
+	font-size: var(--step--1);
+	margin-left: 8px;
+}
+.board-scroll {
+	flex: 1;
+	overflow-y: auto;
+	padding: 8px 32px 40px;
+}
+.board-scroll > section {
+	margin-top: 28px;
+}
+.board-scroll > section:first-child {
+	margin-top: 8px;
+}
+.board-scroll h2 {
+	font-size: var(--step-0);
+	font-weight: 500;
+	margin: 0 0 8px;
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+}
+.board-scroll h3 {
+	font-size: var(--step--1);
+	font-weight: 500;
+	color: var(--graphite);
+	margin: 0 0 8px;
+}
+
+/* 今日決めること：台帳の行 */
+.decide {
+	border-top: 2px solid var(--ink);
+}
+.decide h2 {
+	margin-top: 8px;
+}
+.decide .row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	border-bottom: 1px solid var(--rule);
+	padding: 8px 0;
+}
+.decide .open {
+	flex: 1;
+	min-width: 0;
+	display: grid;
+	grid-template-columns: 64px minmax(0, max-content) minmax(0, 1fr);
+	align-items: baseline;
+	gap: 12px;
+	text-align: left;
+	background: none;
+	border: 0;
+	padding: 0;
+}
+.decide .kind {
+	font-size: var(--step--1);
+	color: var(--graphite);
+}
+.decide .t {
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.decide .s {
+	font-size: var(--step--1);
+	color: var(--graphite);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* タスク：列ごとのカード */
+.cols {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 16px;
+}
+.col {
+	min-width: 0;
+}
+.card {
+	background: var(--paper-2);
+	border: 1px solid var(--rule);
+	border-radius: 8px;
+	padding: 12px 12px 8px;
+	margin-bottom: 8px;
+}
+.card.active {
+	border-color: var(--cover);
+	box-shadow: inset 3px 0 0 var(--cover);
+}
+.card .open {
+	display: block;
+	width: 100%;
+	text-align: left;
+	background: none;
+	border: 0;
+	padding: 0;
+}
+.card .t {
+	display: block;
+	font-weight: 500;
+	line-height: 1.45;
+}
+.card .s {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	font-size: var(--step--1);
+	color: var(--graphite);
+	margin-top: 4px;
+}
+.card .foot {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 8px;
+}
+.card .foot:empty {
+	display: none;
+}
+.card .actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 8px;
+}
+.card .pj {
+	font-size: var(--step--1);
+	color: var(--graphite);
+}
+.badge {
+	font-size: var(--step--1);
+	color: var(--graphite);
+	white-space: nowrap;
+}
+.badge::before {
+	content: "";
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	border: 1px solid var(--graphite);
+	margin-right: 4px;
+	vertical-align: 1px;
+}
+.badge.busy::before {
+	background: var(--focus);
+	border-color: var(--focus);
+	animation: blink 1.2s ease-in-out infinite;
+}
+.badge.unread::before {
+	background: var(--ink);
+	border-color: var(--ink);
+}
+.badge.alert {
+	color: var(--shu);
+}
+.badge.alert::before {
+	background: var(--shu);
+	border-color: var(--shu);
+}
+
+/* ブリーフと動いているもの */
+.lower {
+	display: grid;
+	grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+	gap: 32px;
+}
+.lower h2 {
+	border-bottom: 1px solid var(--rule);
+	padding-bottom: 4px;
+}
+.lower h2 .link {
+	margin-left: auto;
+	font-size: var(--step--1);
+	font-weight: 400;
+}
+.excerpt {
+	font-size: var(--step--1);
+	line-height: 1.7;
+	max-height: 280px;
+	overflow: hidden;
+	-webkit-mask-image: linear-gradient(#000 80%, transparent);
+}
+.excerpt h2 {
+	display: none;
+}
+.facts-list {
+	list-style: none;
+	margin: 0 0 16px;
+	padding: 0;
+	font-size: var(--step--1);
+}
+.facts-list li {
+	display: grid;
+	grid-template-columns: 112px minmax(0, 1fr);
+	gap: 8px;
+	padding: 4px 0;
+	border-bottom: 1px solid var(--rule);
+}
+.facts-list li .link {
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.facts-list li span {
+	color: var(--graphite);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.older {
+	display: flex;
+	gap: 12px;
+	font-size: var(--step--1);
+	margin: 0;
+}
+
+/* ノート：盤面の上に重ねる */
+.reader {
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	display: flex;
+	flex-direction: column;
+	background: var(--paper-2);
+	border-right: 1px solid var(--rule);
+}
+.reader-head {
+	height: 64px;
+	flex: none;
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+	padding: 0 32px 12px 88px;
+	border-bottom: 1px solid var(--rule);
+}
+.reader-path {
+	font-size: var(--step--1);
+	color: var(--graphite);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	margin-left: 8px;
+}
+.reader-scroll {
+	flex: 1;
+	overflow-y: auto;
+	padding: 20px 32px 48px 88px;
+}
+.props {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	margin: 0 0 20px;
+	max-width: 40em;
+	font-size: var(--step--1);
+	border-top: 1px solid var(--rule);
+}
+.props:empty {
+	display: none;
+}
+.props dt,
+.props dd {
+	margin: 0;
+	padding: 4px 0;
+	border-bottom: 1px solid var(--rule);
+}
+.props dt {
+	color: var(--graphite);
+	padding-right: 16px;
+}
+.props dd {
+	word-break: break-all;
+}
+.props dd.hot {
+	color: var(--shu);
+	font-weight: 600;
+}
+
+/* ───── 盤面とターミナルの割り付け ───── */
+.app,
+.app[data-side="right"] {
+	grid-template-columns: minmax(360px, var(--board, 7fr)) 6px minmax(280px, var(--dock, 3fr));
+	grid-template-rows: 100vh;
+}
+.app[data-side="bottom"] {
+	grid-template-columns: 100vw;
+	grid-template-rows: minmax(200px, var(--board, 7fr)) 6px minmax(160px, var(--dock, 3fr));
+}
+.app.dragging {
+	cursor: col-resize;
+	user-select: none;
+}
+.app[data-side="bottom"].dragging {
+	cursor: row-resize;
+}
+.app.dragging .stack {
+	pointer-events: none;
+}
+.splitter {
+	background: var(--rule);
+	cursor: col-resize;
+	position: relative;
+	z-index: 6;
+}
+.app[data-side="bottom"] .splitter {
+	cursor: row-resize;
+}
+.splitter:hover,
+.app.dragging .splitter {
+	background: var(--graphite);
+}
+.app[data-side="bottom"] .dock-head {
+	height: 36px;
+}
+.app[data-side="bottom"] .board,
+.app[data-side="bottom"] .dock {
+	min-height: 0;
+}
+button.side {
+	/* Clawd くんの檻（.clawd-layer, z-index 18）より手前に出す */
+	position: relative;
+	z-index: 19;
+	flex: none;
+	margin: 0 0 8px 8px;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	display: grid;
+	place-items: center;
+	background: var(--cover);
+	border: 1px solid #5d6a58;
+	color: #a9b3a2;
+	border-radius: 50%;
+	font-size: 13px;
+	line-height: 1;
+}
+button.side:hover {
+	color: #e6eadf;
+	border-color: #a9b3a2;
+}
+
+.board-scroll h2 .note {
+	font-size: var(--step--1);
+	font-weight: 400;
+	color: var(--graphite);
+	margin-left: 4px;
+}
+
+/* 行（今日決めること・着手の準備で共通） */
+.prep .row,
+.decide .row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	border-bottom: 1px solid var(--rule);
+	padding: 8px 0;
+}
+.prep .open,
+.decide .open {
+	flex: 1;
+	min-width: 0;
+	display: grid;
+	grid-template-columns: 72px minmax(0, max-content) minmax(0, 1fr);
+	align-items: baseline;
+	gap: 12px;
+	text-align: left;
+	background: none;
+	border: 0;
+	padding: 0;
+}
+.prep .kind,
+.decide .kind {
+	font-size: var(--step--1);
+	color: var(--graphite);
+}
+.prep .t,
+.decide .t {
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.prep .s,
+.decide .s {
+	font-size: var(--step--1);
+	color: var(--graphite);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.prep {
+	border-top: 1px solid var(--ink);
+}
+.prep h2 {
+	margin-top: 8px;
+}
+
+/* 準備の段階：未定義 → 定義中 → 着手可。色ではなく線の詰まり方で示す */
+.ready,
+.kind.ready-未定義,
+.kind.ready-定義中,
+.kind.ready-着手可 {
+	font-size: var(--step--1);
+	white-space: nowrap;
+}
+.ready::before,
+.kind[class*="ready-"]::before {
+	content: "";
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 2px;
+	margin-right: 4px;
+	vertical-align: 0;
+	border: 1px dashed var(--graphite);
+}
+.ready-定義中::before {
+	border-style: solid;
+	background: linear-gradient(90deg, var(--graphite) 50%, transparent 50%);
+}
+.ready-着手可::before {
+	border-style: solid;
+	border-color: var(--ink);
+	background: var(--ink);
+}
+.ready.ready-未定義,
+.ready.ready-定義中 {
+	color: var(--graphite);
+}
+
+/* WBS 表 */
+.wbs table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--step--1);
+}
+.wbs th {
+	text-align: left;
+	font-weight: 400;
+	color: var(--graphite);
+	padding: 4px 8px 4px 0;
+	border-bottom: 1px solid var(--ink);
+	white-space: nowrap;
+}
+.wbs td {
+	padding: 6px 8px 6px 0;
+	border-bottom: 1px solid var(--rule);
+	vertical-align: baseline;
+	white-space: nowrap;
+}
+.wbs td.code {
+	color: var(--graphite);
+	width: 40px;
+}
+.wbs td.name {
+	white-space: normal;
+	padding-left: calc(var(--depth) * 20px);
+	min-width: 180px;
+}
+.wbs td.name .open {
+	background: none;
+	border: 0;
+	padding: 0;
+	text-align: left;
+	font-size: var(--step-0);
+	font-weight: 500;
+}
+.wbs td.name .s {
+	display: block;
+	color: var(--graphite);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 32em;
+}
+.wbs td.num {
+	text-align: right;
+}
+.wbs td.hot {
+	color: var(--shu);
+	font-weight: 600;
+}
+.wbs td.acts {
+	text-align: right;
+}
+.wbs td.acts button + button {
+	margin-left: 4px;
+}
+.wbs tr.closed td {
+	color: var(--graphite);
+	opacity: 0.6;
+}
+.wbs tr.closed .open {
+	text-decoration: line-through;
+	font-weight: 400;
+}
+.wbs tr.active td.name {
+	box-shadow: inset 3px 0 0 var(--cover);
+}
+.wbs td.name .mk {
+	margin-right: 6px;
+}
+
+/* ───── ターミナル（右の帯） ───── */
+.dock {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	min-width: 0;
+	background: #1b201c;
+}
+.dock-head {
+	height: 64px;
+	flex: none;
+	display: flex;
+	align-items: flex-end;
+	background: var(--cover);
+	padding: 0 12px;
+}
+.tabs {
+	display: flex;
+	align-items: flex-end;
+	gap: 4px;
+	overflow-x: auto;
+	scrollbar-width: none;
+	min-width: 0;
+}
+.tab {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	max-width: 220px;
+	background: none;
+	border: 0;
+	border-radius: 6px 6px 0 0;
+	padding: 6px 12px 8px;
+	color: #a9b3a2;
+	font-size: var(--step--1);
+}
+.tab .role {
+	font-family: var(--mono, ui-monospace, monospace);
+	font-size: 0.9em;
+	opacity: 0.7;
+	white-space: nowrap;
+}
+.tab .role + .label {
+	margin-left: 6px;
+}
+.tab .label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.tab:hover {
+	color: #e6eadf;
+}
+.tab[aria-current="true"] {
+	background: #1b201c;
+	color: #e2e6dc;
+	font-weight: 500;
+}
+.tab .x {
+	margin-left: 8px;
+	opacity: 0.5;
+	padding: 0 2px;
+}
+.tab .x:hover {
+	opacity: 1;
+}
+.renew {
+	flex: none;
+	margin: 0 0 6px 8px;
+	background: none;
+	border: 1px solid #f2a897;
+	color: #f2a897;
+	border-radius: 6px;
+	padding: 2px 10px;
+	font-size: var(--step--1);
+}
+.mk {
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	margin-right: 6px;
+	flex: none;
+}
+.mk.busy {
+	background: #8fc1dc;
+	animation: blink 1.2s ease-in-out infinite;
+}
+.mk.unread {
+	background: currentColor;
+}
+.mk.off {
+	border: 1px solid currentColor;
+	opacity: 0.6;
+}
+.mk.room {
+	border: 1px solid var(--graphite);
+}
+.wbs .mk.busy {
+	background: var(--focus);
+}
+.wbs .mk.unread {
+	background: var(--ink);
+}
+@keyframes blink {
+	50% {
+		opacity: 0.25;
+	}
+}
+
+.stack {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+	padding: 8px 4px 0 12px;
+}
+.term {
+	position: absolute;
+	inset: 8px 4px 0 12px;
+}
+.term .xterm {
+	height: 100%;
+}
+.term .xterm-viewport {
+	background: #1b201c !important;
+}
+
+.dock-foot {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding: 8px 16px 12px;
+	border-top: 1px solid #2c332d;
+	font-size: var(--step--1);
+}
+.dock-foot button {
+	background: none;
+	border: 0;
+	padding: 0;
+	color: #a9b3a2;
+	font-size: var(--step--1);
+	white-space: nowrap;
+}
+.dock-foot button:hover {
+	color: #e6eadf;
+	text-decoration: underline;
+}
+.dock-foot .hint {
+	color: #6f7a6c;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* 付箋にして話す（このアプリで唯一目立たせる要素） */
+.pin {
+	position: fixed;
+	z-index: 10;
+	background: var(--fusen);
+	color: var(--fusen-ink);
+	border: 0;
+	border-radius: 2px 2px 2px 8px;
+	padding: 4px 12px;
+	font-size: var(--step--1);
+	font-weight: 500;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.toast {
+	position: fixed;
+	z-index: 20;
+	left: 24px;
+	bottom: 24px;
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	background: var(--ink);
+	color: var(--paper);
+	border-radius: 8px;
+	padding: 8px 16px;
+	font-size: var(--step--1);
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+.toast .link {
+	color: var(--fusen);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation: none !important;
+		transition: none !important;
+	}
+}
+
+/* ───── ガントチャート（WBS） ───── */
+.gantt {
+	--name-w: minmax(200px, 300px);
+}
+.gh,
+.grow {
+	display: grid;
+	grid-template-columns: var(--name-w) minmax(0, 1fr);
+	align-items: stretch;
+}
+.gh {
+	border-bottom: 1px solid var(--ink);
+	font-size: 11px;
+	color: var(--graphite);
+}
+.gh .gname {
+	align-self: end;
+	padding: 0 8px 4px 0;
+	font-size: var(--step--1);
+}
+.gdays {
+	position: relative;
+	display: grid;
+	grid-template-columns: repeat(var(--days), minmax(0, 1fr));
+}
+.gd {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 2px 0 4px;
+	line-height: 1.3;
+	font-variant-numeric: tabular-nums;
+}
+.gd.off {
+	color: var(--shu);
+	opacity: 0.75;
+}
+.gd.today {
+	color: var(--paper);
+	background: var(--ink);
+	border-radius: 4px 4px 0 0;
+	opacity: 1;
+}
+.gd .dw {
+	font-size: 10px;
+}
+.grow {
+	border-bottom: 1px solid var(--rule);
+	min-height: 32px;
+}
+.grow .gname {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px 4px calc(var(--depth) * 16px);
+	min-width: 0;
+}
+.grow[hidden] {
+	display: none;
+}
+/* 親の畳み・開き（子のない行は同じ幅の空き）。実行状況のセッションの行も同じ形 */
+.grow .gtw,
+.runs > li > .gtw {
+	flex: none;
+	width: 16px;
+	height: 20px;
+	margin-right: -4px;
+	padding: 0;
+	border: 0;
+	border-radius: 3px;
+	background: none;
+	color: var(--graphite);
+	font-size: 12px;
+	line-height: 20px;
+	text-align: center;
+}
+button.gtw:hover {
+	color: var(--focus);
+}
+.grow .gkids {
+	flex: none;
+	font-size: 11px;
+	color: var(--graphite);
+	font-variant-numeric: tabular-nums;
+}
+.gantt h2 .gall {
+	margin-left: 8px;
+	font-size: var(--step--1);
+	font-weight: 400;
+}
+.grow .code {
+	flex: none;
+	width: 28px;
+	font-size: 11px;
+	color: var(--graphite);
+}
+.grow .open {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	background: none;
+	border: 0;
+	padding: 0;
+	text-align: left;
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.grow .acts {
+	flex: none;
+	display: none;
+	gap: 4px;
+}
+.grow:hover .acts,
+.grow:focus-within .acts {
+	display: inline-flex;
+}
+.grow.closed .open {
+	color: var(--graphite);
+	text-decoration: line-through;
+	font-weight: 400;
+}
+.grow.active .gname {
+	box-shadow: inset 3px 0 0 var(--cover);
+}
+/* 準備の段階を名前の前の小さな四角で */
+.grow .ready {
+	flex: none;
+	margin-right: 6px;
+}
+.grow .ready::before {
+	margin-right: 0;
+}
+/* 日ごとの縞（休日・今日） */
+.grow .gdays > i {
+	border-left: 1px solid var(--grid);
+}
+.grow .gdays > i.off {
+	background: repeating-linear-gradient(135deg, transparent 0 4px, var(--grid) 4px 5px);
+}
+.grow .gdays > i.today {
+	background: color-mix(in srgb, var(--focus) 10%, transparent);
+	box-shadow: inset 1px 0 0 var(--focus), inset -1px 0 0 var(--focus);
+}
+.gbar {
+	position: absolute;
+	top: 50%;
+	height: 12px;
+	margin-top: -6px;
+	border-radius: 3px;
+	overflow: hidden;
+}
+.gbar.prep {
+	height: 8px;
+	margin-top: -4px;
+	border: 1px dashed var(--graphite);
+	background: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--graphite) 45%, transparent) 3px 4px);
+}
+.gbar.prep.late {
+	border-color: var(--shu);
+	background: color-mix(in srgb, var(--shu) 25%, transparent);
+}
+.gbar.work {
+	border: 1px solid var(--ink);
+	background: transparent;
+}
+.gbar.work > b {
+	display: block;
+	height: 100%;
+	background: var(--ink);
+}
+.gbar.work.st-doing {
+	background: color-mix(in srgb, var(--ink) 25%, transparent);
+}
+.gbar.work.st-waiting {
+	border-style: dashed;
+}
+.gbar.work.st-done {
+	opacity: 0.4;
+}
+.gbar.work.late {
+	border-color: var(--shu);
+}
+.gbar.work.late > b {
+	background: var(--shu);
+}
+.gbar.cut-l {
+	border-left-style: dotted;
+	border-radius: 0 3px 3px 0;
+}
+.gbar.cut-r {
+	border-right-style: dotted;
+	border-radius: 3px 0 0 3px;
+}
+.gms {
+	position: absolute;
+	top: 50%;
+	width: 9px;
+	height: 9px;
+	margin: -4.5px 0 0 -4.5px;
+	background: var(--ink);
+	transform: rotate(45deg);
+	box-shadow: 0 0 0 2px var(--paper);
+}
+.gms.late {
+	background: var(--shu);
+}
+.gedge {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	font-size: 10px;
+	color: var(--graphite);
+	white-space: nowrap;
+}
+.gedge.l {
+	left: 2px;
+}
+.gedge.r {
+	right: 2px;
+}
+.gedge.late {
+	color: var(--shu);
+	font-weight: 600;
+}
+
+/* 進捗線（イナズマ線）。.gpos は各行の位置の目印（線の頂点）。線は .gwrap 全体に重ねた SVG */
+.gwrap {
+	position: relative;
+}
+.gpos {
+	position: absolute;
+	top: 50%;
+	width: 0;
+	height: 0;
+}
+.pline {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	overflow: visible;
+}
+.pline polyline {
+	fill: none;
+	stroke-width: 2;
+	stroke-linejoin: round;
+	stroke-linecap: round;
+}
+.pline .seg {
+	stroke: var(--ink);
+}
+.pline .seg.behind {
+	stroke: var(--shu);
+}
+.pline .seg.ahead {
+	stroke: var(--ok);
+}
+.pline circle {
+	fill: var(--paper);
+	stroke: var(--ink);
+	stroke-width: 2;
+}
+.pline circle.behind {
+	stroke: var(--shu);
+}
+.pline circle.ahead {
+	stroke: var(--ok);
+}
+.mono .pline .seg.behind,
+.mono .pline .seg.ahead,
+.mono .pline circle.behind,
+.mono .pline circle.ahead {
+	stroke: var(--ink);
+}
+.gantt h2 .gopts {
+	margin-left: auto;
+	display: inline-flex;
+	gap: 12px;
+	font-size: var(--step--1);
+	font-weight: 400;
+	color: var(--graphite);
+}
+.gantt h2 .gopt {
+	cursor: pointer;
+}
+.gantt h2 .gopt input {
+	margin: 0 4px 0 0;
+	vertical-align: -2px;
+}
+.glegend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 18px;
+	margin: 8px 0 0;
+	font-size: 11px;
+	color: var(--graphite);
+}
+.glegend i {
+	display: inline-block;
+	vertical-align: middle;
+	width: 22px;
+	height: 0;
+	margin-right: 6px;
+	border-top: 2px solid var(--ink);
+}
+.glegend i.l-beh {
+	border-top-color: var(--shu);
+}
+.glegend i.l-ahd {
+	border-top-color: var(--ok);
+}
+
+/* ───── 今日のタイムライン ───── */
+.brief-body {
+	display: grid;
+	grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+	gap: 24px;
+	align-items: start;
+}
+.timeline .allday {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-bottom: 8px;
+}
+.timeline .allday span {
+	font-size: 11px;
+	color: var(--graphite);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	padding: 0 6px;
+}
+.tl {
+	position: relative;
+	margin-left: 40px;
+	border-left: 1px solid var(--rule);
+}
+.tl .hr {
+	position: absolute;
+	left: 0;
+	right: 0;
+	border-top: 1px solid var(--grid);
+}
+.tl .hr span {
+	position: absolute;
+	left: -40px;
+	top: -8px;
+	width: 34px;
+	text-align: right;
+	font-size: 10px;
+	color: var(--graphite);
+	font-variant-numeric: tabular-nums;
+}
+.tl .evs {
+	position: absolute;
+	inset: 0 0 0 4px;
+}
+/* 予定の種類ごとの色。タイムラインはブリーフの主役なので、ここだけ色を使う */
+:root {
+	--ev-pj: #2f6fd0; /* 案件 */
+	--ev-internal: #2e9466; /* 社内会議 */
+	--ev-talk: #d9822b; /* 面談・相談 */
+	--ev-learn: #8b5bd0; /* 勉強会・イベント */
+	--ev-other: #7a8590; /* その他 */
+	--ev-fill: 32%;
+	--ev-fill-pending: 20%;
+}
+/* ダーク固定 */
+	:root {
+	--ev-pj: #6ea2f0;
+	--ev-internal: #5cc092;
+	--ev-talk: #f0a35e;
+	--ev-learn: #b18cf0;
+	--ev-other: #9aa5ae;
+	--ev-fill: 40%;
+	--ev-fill-pending: 26%;
+}
+.k-pj {
+	--h: var(--ev-pj);
+}
+.k-internal {
+	--h: var(--ev-internal);
+}
+.k-talk {
+	--h: var(--ev-talk);
+}
+.k-learn {
+	--h: var(--ev-learn);
+}
+.k-other {
+	--h: var(--ev-other);
+}
+.ev {
+	position: absolute;
+	box-sizing: border-box;
+	padding: 1px 6px;
+	border-left: 4px solid var(--h);
+	background: color-mix(in srgb, var(--h) var(--ev-fill), var(--paper-2));
+	border-radius: 2px 4px 4px 2px;
+	font-size: 11px;
+	line-height: 1.35;
+	overflow: hidden;
+	color: var(--ink);
+	box-shadow: 0 0 0 1px var(--paper);
+}
+.ev .tm {
+	font-variant-numeric: tabular-nums;
+	color: color-mix(in srgb, var(--h) 70%, var(--ink));
+	font-weight: 500;
+}
+/* 未回答：塗りを薄く、枠を点線で */
+.ev.pending {
+	background: color-mix(in srgb, var(--h) var(--ev-fill-pending), var(--paper-2));
+	outline: 1px dashed var(--h);
+	outline-offset: -1px;
+}
+.ev.declined {
+	opacity: 0.4;
+	text-decoration: line-through;
+}
+.ev.past {
+	opacity: 0.5;
+	filter: saturate(0.5);
+}
+/* いま進行中の予定 */
+.ev.ongoing {
+	background: color-mix(in srgb, var(--h) 55%, var(--paper-2));
+	box-shadow: 0 0 0 2px var(--h);
+	z-index: 1;
+}
+.timeline .legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+	margin: 8px 0 0 40px;
+	font-size: 11px;
+	color: var(--graphite);
+}
+.timeline .legend span::before {
+	content: "";
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	margin-right: 4px;
+	vertical-align: -1px;
+	background: color-mix(in srgb, var(--h) var(--ev-fill), var(--paper-2));
+	border-left: 3px solid var(--h);
+}
+.timeline .legend .pending::before {
+	--h: var(--graphite);
+	background: transparent;
+	border: 1px dashed var(--graphite);
+}
+.tl .now {
+	position: absolute;
+	left: -5px;
+	right: 0;
+	border-top: 2px solid var(--shu);
+}
+.tl .now::before {
+	content: "";
+	position: absolute;
+	left: -3px;
+	top: -5px;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--shu);
+}
+
+/* ───── 実行状況 ───── */
+.runs {
+	list-style: none;
+	margin: 0 0 20px;
+	padding: 0;
+	font-size: var(--step--1);
+}
+.runs > li {
+	display: grid;
+	/* 畳む印 / 役職 / 名前 / 畳んだときの中身の数 / 状態 */
+	grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+	align-items: baseline;
+	gap: 4px 8px;
+	padding: 6px 0;
+	border-bottom: 1px solid var(--rule);
+}
+.runs > li > .link {
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.runs .st {
+	color: var(--graphite);
+	white-space: nowrap;
+}
+/* 会話が途切れたセッションは中身（ファイル・URL と worker）を畳み、数だけ出す */
+.runs > li > .gtw {
+	align-self: center;
+}
+.runs > li > .st {
+	grid-column: 5;
+}
+.runs > li > .rsum {
+	font-size: 11px;
+	color: var(--graphite);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.runs > li:not(.rfolded) > .rsum,
+.runs > li.rfolded > .lks,
+.runs > li.rfolded > .ws {
+	display: none;
+}
+.runs .st.busy::before {
+	content: "";
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--focus);
+	margin-right: 4px;
+	vertical-align: 1px;
+	animation: blink 1.2s ease-in-out infinite;
+}
+.runs ul {
+	grid-column: 1 / -1;
+	list-style: none;
+	margin: 0;
+	padding: 0 0 0 12px;
+	border-left: 1px solid var(--rule);
+}
+.runs .w {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	gap: 8px;
+	padding: 2px 0;
+}
+.runs .w .ty {
+	color: var(--graphite);
+}
+.runs .w .de {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.runs .w.running .st {
+	color: var(--focus);
+}
+.runs .w.stalled .st {
+	color: var(--fusen);
+}
+.runs .w.failed .st {
+	color: var(--shu);
+}
+.runs .w.killed .st {
+	color: var(--graphite);
+}
+.runs .w.done {
+	opacity: 0.6;
+}
+.runs .w {
+	transition: background 0.3s ease;
+}
+.runs .w.hl {
+	background: color-mix(in srgb, var(--focus) 12%, transparent);
+	box-shadow: inset 3px 0 0 var(--focus);
+	opacity: 1;
+}
+
+@media (max-width: 1100px) {
+	.lower,
+	.brief-body {
+		grid-template-columns: 1fr;
+	}
+}
+
+
+/* 予定に付いた Meet・メモ・録画（開くための印だけ） */
+.ev .evls {
+	position: absolute;
+	top: 1px;
+	right: 2px;
+	display: inline-flex;
+	gap: 2px;
+	padding-left: 6px;
+	background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--h) var(--ev-fill), var(--paper-2)) 6px);
+	text-decoration: none;
+}
+.ev .evl {
+	font-size: 10px;
+	line-height: 14px;
+	padding: 0 4px;
+	border-radius: 3px;
+	background: var(--paper-2);
+	color: color-mix(in srgb, var(--h) 75%, var(--ink));
+	border: 1px solid color-mix(in srgb, var(--h) 50%, transparent);
+	text-decoration: none;
+	white-space: nowrap;
+}
+.ev .evl.meet {
+	background: var(--h);
+	color: var(--paper-2);
+	border-color: var(--h);
+}
+.ev .evl:hover {
+	filter: brightness(1.1);
+	text-decoration: underline;
+}
+.ev.declined .evl {
+	text-decoration: none;
+}
+
+/* ───── ダッシュボードとノートのタブ ───── */
+.board-tabs {
+	display: flex;
+	align-items: flex-end;
+	gap: 2px;
+	min-width: 0;
+	overflow-x: auto;
+	scrollbar-width: none;
+	align-self: flex-end;
+	margin-bottom: -12px; /* 見出しの下線まで下ろす */
+}
+.btab {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	max-width: 200px;
+	background: none;
+	border: 1px solid transparent;
+	border-bottom: 0;
+	border-radius: 6px 6px 0 0;
+	padding: 4px 12px 6px;
+	font-size: var(--step--1);
+	color: var(--graphite);
+}
+.btab .label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.btab:hover {
+	color: var(--ink);
+}
+.btab[aria-current="true"] {
+	background: var(--paper-2);
+	border-color: var(--rule);
+	color: var(--ink);
+	font-weight: 500;
+}
+.btab .x {
+	margin-left: 8px;
+	opacity: 0.5;
+	padding: 0 2px;
+}
+.btab .x:hover {
+	opacity: 1;
+}
+.board-head {
+	border-bottom: 1px solid var(--rule);
+}
+/* ノートはヘッダーの下に重ねる */
+.reader {
+	top: 64px;
+	border-right: 0;
+}
+.reader-head {
+	height: 44px;
+	align-items: center;
+	padding: 0 32px;
+}
+.reader-path {
+	margin-left: 0;
+}
+.reader-scroll {
+	padding: 20px 32px 48px;
+}
+
+/* ───── 実行状況のファイル・URL ───── */
+.runs .ws {
+	grid-column: 1 / -1;
+}
+.runs .w {
+	display: block;
+}
+.runs .w .wh {
+	display: grid;
+	grid-template-columns: auto auto minmax(0, 1fr) auto;
+	align-items: baseline;
+	gap: 8px;
+}
+.lks {
+	grid-column: 1 / -1;
+	list-style: none;
+	margin: 2px 0 4px;
+	padding: 0 0 0 12px;
+}
+.lk {
+	display: grid;
+	grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+	gap: 8px;
+	align-items: baseline;
+	padding: 1px 0;
+	font-size: 11px;
+}
+.lk .link {
+	display: inline-flex;
+	gap: 6px;
+	align-items: baseline;
+	min-width: 0;
+	text-decoration: none;
+	color: var(--ink);
+}
+.lk .link:hover .nm {
+	text-decoration: underline;
+}
+.lk .via {
+	flex: none;
+	font-size: 10px;
+	color: var(--graphite);
+	border: 1px solid var(--rule);
+	border-radius: 3px;
+	padding: 0 4px;
+	line-height: 14px;
+}
+.lk .nm {
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--focus);
+}
+.lk.file .nm::before {
+	content: "▤ ";
+	color: var(--graphite);
+	font-weight: 400;
+}
+.lk.url .nm::before {
+	content: "↗ ";
+	color: var(--graphite);
+	font-weight: 400;
+}
+.lk .pt {
+	color: var(--graphite);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.lk .ti {
+	color: var(--graphite);
+	font-weight: 400;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 16em;
+}
+
+/* ───── 折りたたみ ───── */
+h2[data-fold] {
+	cursor: pointer;
+	user-select: none;
+}
+h2[data-fold]::before {
+	content: "▾";
+	display: inline-block;
+	width: 16px;
+	margin-left: -2px;
+	color: var(--graphite);
+	font-size: 13px;
+	transition: transform 0.15s ease;
+}
+.folded > h2[data-fold]::before {
+	transform: rotate(-90deg);
+}
+h2[data-fold]:hover {
+	color: var(--focus);
+}
+.folded > .fold-body {
+	display: none;
+}
+.folded > h2[data-fold] {
+	margin-bottom: 0;
+}
+
+/* 現在時刻のラベル */
+.tl .now span {
+	position: absolute;
+	left: -46px;
+	top: -8px;
+	width: 38px;
+	text-align: right;
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--shu);
+	background: var(--paper);
+	font-variant-numeric: tabular-nums;
+}
+
+/* ───── どちらにフォーカスがあるか（⌘[ / ⌘] で移す） ───── */
+.board-scroll:focus,
+.reader-scroll:focus {
+	outline: none;
+}
+.board,
+.dock {
+	position: relative;
+}
+.board::after,
+.dock::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	height: 2px;
+	background: transparent;
+	pointer-events: none;
+	z-index: 7;
+	transition: background 0.15s ease;
+}
+.app[data-focus="board"] .board::after {
+	background: var(--focus);
+}
+.app[data-focus="term"] .dock::after {
+	background: #8fc1dc;
+}
+
+/* 役職（mgr / sub mgr / worker） */
+.role {
+	font-family: var(--mono, ui-monospace, monospace);
+	font-size: 0.85em;
+	color: var(--graphite);
+	white-space: nowrap;
+}
+
+/* ───── アイデア ───── */
+.ideas {
+	border-top: 1px solid var(--ink);
+}
+.ideas h2 {
+	margin-top: 8px;
+}
+.ideas .igroup + .igroup {
+	margin-top: 8px;
+}
+.ideas .idea {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	border-bottom: 1px solid var(--rule);
+	padding: 6px 0;
+	transition: background 0.3s ease;
+}
+.ideas .idea.hl {
+	background: color-mix(in srgb, var(--focus) 12%, transparent);
+	box-shadow: inset 3px 0 0 var(--focus);
+}
+.ideas .open {
+	flex: 1;
+	min-width: 0;
+	display: grid;
+	grid-template-columns: 56px minmax(0, max-content) minmax(0, 1fr);
+	align-items: baseline;
+	gap: 12px;
+	text-align: left;
+	background: none;
+	border: 0;
+	padding: 0;
+}
+.ideas .ist {
+	font-size: var(--step--1);
+	color: var(--graphite);
+	white-space: nowrap;
+}
+.ideas .ist-新規::before {
+	content: "";
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--focus);
+	margin-right: 4px;
+	vertical-align: 1px;
+}
+.ideas .t {
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.ideas .s,
+.ideas .src {
+	font-size: var(--step--1);
+	color: var(--graphite);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.ideas .src {
+	flex: none;
+	max-width: 14em;
+}
+
+/* ───── タスクに添える印（アイデアの数・下調べ・重い） ───── */
+.tbs {
+	flex: none;
+	display: inline-flex;
+	gap: 4px;
+	margin-left: 4px;
+}
+.tb {
+	background: none;
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	padding: 0 5px;
+	font-size: 10.5px;
+	line-height: 17px;
+	color: var(--graphite);
+	white-space: nowrap;
+}
+button.tb:hover {
+	color: var(--ink);
+	border-color: var(--graphite);
+}
+.tb.heavy {
+	border-style: dashed;
+	cursor: help;
+}
+
+/* 先読みの推奨（着手の準備の行の下） */
+.prep .row.has-reco {
+	border-bottom: 0;
+	padding-bottom: 2px;
+}
+.prep .reco {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px 12px;
+	padding: 0 0 8px 84px;
+	border-bottom: 1px solid var(--rule);
+	font-size: 11.5px;
+	color: var(--graphite);
+}
+.prep .reco .simplify {
+	color: var(--ink);
+	opacity: 0.8;
+}
+.prep .reco .simplify::before {
+	content: "";
+	display: inline-block;
+	width: 8px;
+	border-top: 1px dashed var(--graphite);
+	margin-right: 6px;
+	vertical-align: 3px;
+}
+
+/* ガントの推奨開始日：行の上辺の小さな三角 */
+.greco {
+	position: absolute;
+	top: 2px;
+	width: 0;
+	height: 0;
+	margin-left: -1px;
+	border-left: 4px solid transparent;
+	border-right: 4px solid transparent;
+	border-top: 5px solid var(--focus);
+	opacity: 0.75;
+	cursor: help;
+}
+.greco.heavy {
+	border-top-color: var(--shu);
+}
+
+/* ───── 活動の記録（実行状況の最初の 1 行） ───── */
+.act {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	margin: 0 0 6px;
+	padding: 4px 0 6px;
+	border-bottom: 1px solid var(--rule);
+	font-size: var(--step--1);
+	color: var(--graphite);
+	min-width: 0;
+}
+.act .tm {
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+.act .lb {
+	white-space: nowrap;
+	color: var(--ink);
+}
+.act .lb-off {
+	color: var(--shu);
+}
+.act .lb-idle {
+	color: var(--graphite);
+}
+.act .sm {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 閉じるまで出しておく案内 */
+.toast {
+	max-width: min(720px, calc(100vw - 48px));
+}
+
+/* ───── アイデア：一覧 / グラフの切り替え ───── */
+.ideas h2 .vt {
+	margin-left: auto;
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0;
+	font-weight: 400;
+}
+.vt button[data-iview] {
+	background: none;
+	border: 1px solid var(--rule);
+	padding: 0 8px;
+	line-height: 20px;
+	font-size: var(--step--1);
+	color: var(--graphite);
+}
+.vt button[data-iview]:first-child {
+	border-radius: 4px 0 0 4px;
+}
+.vt button[data-iview]:nth-child(2) {
+	border-radius: 0 4px 4px 0;
+	border-left: 0;
+	margin-right: 12px;
+}
+.vt button[aria-pressed="true"] {
+	background: var(--ink);
+	border-color: var(--ink);
+	color: var(--paper);
+}
+.vt .link {
+	font-size: var(--step--1);
+}
+
+/* ───── アイデアのグラフ ───── */
+.igraph-slot {
+	height: 380px;
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+	background: var(--paper-2);
+	overflow: hidden;
+}
+.igraph {
+	width: 100%;
+	height: 100%;
+}
+.igraph canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+	touch-action: none;
+}
+.reader-graph {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+.reader-graph .igraph {
+	flex: 1;
+	min-height: 0;
+}
+.reader-graph .igraph-legend {
+	padding: 6px 32px 10px;
+	border-top: 1px solid var(--rule);
+}
+.igraph-legend {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 14px;
+	margin: 6px 0 0;
+	font-size: 11.5px;
+	color: var(--graphite);
+}
+.igraph-legend .lg::before {
+	content: "";
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	margin-right: 5px;
+	vertical-align: 0;
+}
+.igraph-legend .idea::before {
+	border-radius: 50%;
+	background: var(--focus);
+}
+.igraph-legend .task::before {
+	background: var(--ink);
+}
+.igraph-legend .goal::before {
+	background: var(--ink);
+	transform: rotate(45deg) scale(0.85);
+}
+.igraph-legend .project::before {
+	border-radius: 50%;
+	border: 2px solid var(--graphite);
+	width: 6px;
+	height: 6px;
+}
+.igraph-legend .hint {
+	margin-left: auto;
+}
+.btab.gopen {
+	border: 1px dashed var(--rule);
+	border-bottom: 0;
+	margin-left: 6px;
+}
+
+/* ───── エージェント ───── */
+.agents {
+	border-top: 1px solid var(--ink);
+}
+.agents h2 {
+	margin-top: 8px;
+}
+.agents .agroup + .agroup {
+	margin-top: 10px;
+}
+.agents .ag {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 6em 7.5em;
+	align-items: baseline;
+	gap: 12px;
+	border-bottom: 1px solid var(--rule);
+	padding: 5px 0;
+	font-size: var(--step--1);
+}
+.agents .ag .open {
+	min-width: 0;
+	display: grid;
+	grid-template-columns: 11em minmax(0, 1fr);
+	align-items: baseline;
+	gap: 12px;
+	text-align: left;
+	background: none;
+	border: 0;
+	padding: 0;
+}
+.agents .nm {
+	font-family: var(--mono, ui-monospace, monospace);
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.agents .rl {
+	color: var(--graphite);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.agents .md,
+.agents .st {
+	color: var(--graphite);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.agents .st.busy {
+	color: var(--focus);
+}
+.agents .st.busy::before {
+	content: "";
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--focus);
+	margin-right: 4px;
+	vertical-align: 1px;
+	animation: blink 1.2s ease-in-out infinite;
+}
+.agents .ag.off {
+	opacity: 0.45;
+}
+.agents .ag .open:hover .nm {
+	color: var(--focus);
+}
+
+/* ───── Clawd くん（ウィンドウ全体の上を歩く。本体と吹き出し以外はクリックを透過） ───── */
+.clawd-layer {
+	position: fixed;
+	inset: 0;
+	z-index: 18;
+	pointer-events: none;
+}
+.clawd {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 48px;
+	height: 30px;
+	image-rendering: pixelated;
+	pointer-events: auto;
+	cursor: grab;
+	filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35));
+	will-change: transform;
+}
+/* 檻（ターミナルの右上）。クリックは透過し、Clawd くんを閉じ込めるだけ */
+.clawd-cage {
+	position: absolute;
+	left: 0;
+	top: 0;
+	pointer-events: none;
+	image-rendering: pixelated;
+}
+.clawd-cage .cage-top,
+.clawd-cage .cage-floor {
+	position: absolute;
+	left: -4px;
+	right: -4px;
+	height: 6px;
+	background: #6b6f76;
+	box-shadow: inset 0 -2px 0 #4a4d52;
+	border-radius: 2px;
+}
+.clawd-cage .cage-top {
+	top: 0;
+}
+.clawd-cage .cage-floor {
+	bottom: 0;
+	background: color-mix(in srgb, #6b6f76 70%, transparent);
+}
+.clawd-cage .cage-bars {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 6px;
+	bottom: 6px;
+	background: repeating-linear-gradient(90deg, #8a8f97 0 3px, transparent 3px 14px);
+	opacity: 0.85;
+	z-index: 1;
+}
+.clawd:active {
+	cursor: grabbing;
+}
+.clawd-bubble {
+	position: absolute;
+	width: 40vw;
+	min-width: 320px;
+	height: 80vh;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 8px 10px 8px;
+	pointer-events: auto;
+	/* 背景は 75% 透過。後ろが透けても読めるよう、ぼかしを掛ける */
+	background: color-mix(in srgb, var(--paper-2) 25%, transparent);
+	-webkit-backdrop-filter: blur(8px);
+	backdrop-filter: blur(8px);
+	color: var(--ink);
+	border: 1px solid var(--rule);
+	border-radius: 10px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+	font-size: var(--cb-font, 12px);
+}
+/* しっぽ（Clawd くんの方を指す） */
+.clawd-bubble::after {
+	content: "";
+	position: absolute;
+	left: var(--tail, 50%);
+	bottom: -6px;
+	width: 10px;
+	height: 10px;
+	margin-left: -5px;
+	background: color-mix(in srgb, var(--paper-2) 25%, transparent);
+	border-right: 1px solid var(--rule);
+	border-bottom: 1px solid var(--rule);
+	transform: rotate(45deg);
+}
+.clawd-bubble.below::after {
+	bottom: auto;
+	top: -6px;
+	transform: rotate(-135deg);
+}
+/* 横に置いたとき（大きい吹き出しは Clawd くんの左右に出す） */
+.clawd-bubble.side-r::after,
+.clawd-bubble.side-l::after {
+	bottom: auto;
+	top: var(--tail-y, 50%);
+	margin-left: 0;
+	margin-top: -5px;
+}
+.clawd-bubble.side-r::after {
+	left: -6px;
+	transform: rotate(135deg);
+}
+.clawd-bubble.side-l::after {
+	left: auto;
+	right: -6px;
+	transform: rotate(-45deg);
+}
+.cb-head {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+}
+.cb-name {
+	font-weight: 600;
+	color: #d97757;
+}
+.cb-st {
+	color: var(--graphite);
+	font-size: 0.9em;
+}
+.cb-x {
+	margin-left: auto;
+	background: none;
+	border: 0;
+	padding: 0 2px;
+	color: var(--graphite);
+	font-size: 14px;
+	line-height: 1;
+}
+.cb-x:hover {
+	color: var(--ink);
+}
+.cb-log {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+.cb-msg {
+	margin: 0;
+	padding: 6px 10px;
+	font-size: var(--cb-font, 12px);
+	border-radius: 8px;
+	white-space: pre-wrap;
+	word-break: break-word;
+	line-height: 1.5;
+	max-width: 88%;
+}
+.cb-msg.user {
+	align-self: flex-end;
+	background: var(--cover);
+	color: var(--cover-ink);
+}
+.cb-msg.bot {
+	align-self: flex-start;
+	background: color-mix(in srgb, #d97757 16%, var(--paper-2));
+}
+.cb-msg.pending {
+	opacity: 0.75;
+}
+.cb-input {
+	width: 100%;
+	resize: none;
+	font: inherit;
+	color: var(--ink);
+	background: var(--paper);
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+	padding: 5px 8px;
+	line-height: 1.5;
+}
+.cb-input:focus {
+	outline: none;
+	border-color: var(--focus);
+}
+.cb-hint {
+	font-size: 0.85em;
+	color: var(--graphite);
+}
+/* md 本文（会話とノート共通） */
+.md,
+.doc {
+	overflow-wrap: anywhere;
+}
+.doc {
+	font-size: var(--step-0);
+	line-height: 1.8;
+	max-width: 40em;
+}
+.md h1,
+.md h2,
+.md h3,
+.doc h1,
+.doc h2,
+.doc h3,
+.doc h4 {
+	line-height: 1.4;
+	margin: 1.4em 0 0.5em;
+}
+.doc h1 {
+	font-family: var(--serif);
+	font-size: var(--step-3);
+}
+.doc h2,
+.md h2 {
+	font-size: var(--step-2);
+	border-bottom: 1px solid var(--rule);
+	padding-bottom: 4px;
+}
+.doc h3,
+.md h3 {
+	font-size: var(--step-1);
+}
+.md h1 {
+	font-size: var(--step-2);
+}
+.md p,
+.doc p {
+	margin: 0.5em 0;
+}
+.md ul,
+.md ol,
+.doc ul,
+.doc ol {
+	padding-left: 1.4em;
+	margin: 0.4em 0;
+}
+.md table,
+.doc table {
+	border-collapse: collapse;
+	margin: 0.8em 0;
+	font-size: var(--step-0);
+	display: block;
+	overflow-x: auto;
+}
+.md th,
+.md td,
+.doc th,
+.doc td {
+	border-bottom: 1px solid var(--rule);
+	padding: 4px 12px 4px 0;
+	text-align: left;
+	vertical-align: top;
+}
+.md th,
+.doc th {
+	color: var(--graphite);
+	font-weight: 500;
+	font-size: var(--step--1);
+}
+.md code,
+.doc code {
+	font-family: ui-monospace, "SF Mono", Menlo, monospace;
+	font-size: 0.88em;
+	background: var(--grid);
+	padding: 1px 4px;
+	border-radius: 3px;
+}
+.md pre,
+.doc pre {
+	background: var(--paper-2);
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	padding: 10px 12px;
+	overflow-x: auto;
+}
+.md pre code,
+.doc pre code {
+	background: none;
+	padding: 0;
+}
+.md blockquote,
+.doc blockquote {
+	margin: 0.6em 0;
+	padding-left: 12px;
+	border-left: 3px solid var(--rule);
+	color: var(--graphite);
+}
+.md a,
+.doc a {
+	color: var(--focus);
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 2px;
+}
+/* タスクリスト：点とチェックボックスを二重にしない */
+.md li:has(> input[type="checkbox"]),
+.doc li:has(> input[type="checkbox"]) {
+	list-style: none;
+	margin-left: -1.4em;
+}
+.md li > input[type="checkbox"],
+.doc li > input[type="checkbox"] {
+	margin: 0 8px 0 0;
+	accent-color: var(--graphite);
+}
+.embed {
+	display: block;
+	font-size: var(--step--1);
+	color: var(--graphite);
+	border: 1px dashed var(--rule);
+	border-radius: 4px;
+	padding: 4px 10px;
+	margin: 6px 0;
+}
+.caret::after {
+	content: "▍";
+	color: var(--graphite);
+	animation: blink 1s steps(2) infinite;
+}
+
+
+/* ───── エリアをガラスのカードにする（枠線なし・背景 70%・角丸） ───── */
+:root {
+	--desk: #121613; /* カードの下の机 */
+	--glass: color-mix(in srgb, var(--paper-2) 30%, transparent);
+	--glass-blur: blur(16px) saturate(1.15);
+	--glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.22);
+	--card-r: 14px;
+	--hair: rgba(255, 255, 255, 0.06); /* カードの中の区切り */
+}
+html,
+body {
+	background: var(--desk);
+}
+/* 方眼は机に敷く。カードがそれをぼかす */
+.app {
+	padding: 8px;
+	background-color: var(--desk);
+	background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+	background-size: 19px 19px;
+}
+.app,
+.app[data-side="right"] {
+	grid-template-columns: minmax(360px, var(--board, 7fr)) 8px minmax(280px, var(--dock, 3fr));
+	grid-template-rows: minmax(0, 1fr);
+}
+.app[data-side="bottom"] {
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-rows: minmax(200px, var(--board, 7fr)) 8px minmax(160px, var(--dock, 3fr));
+}
+
+/* 境界はカードの隙間。触れたときだけ細い線を出す */
+.splitter,
+.splitter:hover,
+.app.dragging .splitter {
+	background: none;
+}
+.splitter::after {
+	content: "";
+	position: absolute;
+	inset: 25% 3px;
+	border-radius: 2px;
+	background: transparent;
+	transition: background 0.15s;
+}
+.app[data-side="bottom"] .splitter::after {
+	inset: 3px 25%;
+}
+.splitter:hover::after,
+.app.dragging .splitter::after {
+	background: var(--graphite);
+}
+
+/* 盤面: 見出しは机の上、各エリアがカード */
+.board {
+	background: none;
+}
+.board-head {
+	padding-left: 80px;
+	padding-right: 16px;
+}
+.board-scroll {
+	padding: 4px 4px 24px;
+}
+.board-scroll > section:not(.lower),
+.lower > div {
+	background: var(--glass);
+	-webkit-backdrop-filter: var(--glass-blur);
+	backdrop-filter: var(--glass-blur);
+	border: 0;
+	border-radius: var(--card-r);
+	box-shadow: var(--glass-shadow);
+	padding: 14px 20px 16px;
+}
+.board-scroll > section {
+	margin-top: 12px;
+}
+.board-scroll > section:first-child {
+	margin-top: 0;
+}
+.lower {
+	gap: 12px;
+}
+.decide {
+	border-top: 0;
+}
+.decide h2 {
+	margin-top: 0;
+}
+
+/* ノート（盤面の上に重ねる） */
+.reader {
+	background: var(--glass);
+	-webkit-backdrop-filter: blur(28px) saturate(1.15);
+	backdrop-filter: blur(28px) saturate(1.15);
+	border: 0;
+	border-radius: var(--card-r);
+	box-shadow: var(--glass-shadow);
+	overflow: hidden;
+}
+.reader-head {
+	border-bottom-color: var(--hair);
+}
+
+/* ターミナル */
+.dock {
+	background: var(--glass);
+	-webkit-backdrop-filter: var(--glass-blur);
+	backdrop-filter: var(--glass-blur);
+	border: 0;
+	border-radius: var(--card-r);
+	box-shadow: var(--glass-shadow);
+	overflow: hidden;
+}
+.dock-head,
+.app[data-side="bottom"] .dock-head {
+	background: none;
+	height: 48px;
+	padding: 0 8px 4px;
+	align-items: flex-end;
+}
+.app[data-side="bottom"] .dock-head {
+	height: 40px;
+}
+.tab {
+	border-radius: 8px;
+	padding: 5px 12px;
+}
+.tab[aria-current="true"] {
+	background: rgba(255, 255, 255, 0.07);
+}
+.stack {
+	padding-top: 4px;
+}
+.term {
+	inset: 4px 4px 0 12px;
+}
+.term .xterm-viewport {
+	background: transparent !important;
+}
+.dock-foot {
+	border-top-color: var(--hair);
+}
+
+/* タブの 1 段下：今のタブの worker のチップ（worker がいなければ hidden で高さ 0） */
+.wstrip {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px 2px 12px;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+.wchip {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 280px;
+	padding: 1px 10px 1px 8px;
+	border: 1px solid var(--hair);
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.04);
+	color: var(--cover-ink);
+	font-size: var(--step--1);
+	line-height: 1.6;
+}
+.wchip:hover {
+	background: rgba(255, 255, 255, 0.09);
+}
+.wchip .wm {
+	flex: none;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--cover-dim);
+}
+.wchip .ty {
+	font-family: var(--mono, ui-monospace, monospace);
+	font-size: 0.9em;
+	color: var(--cover-dim);
+	white-space: nowrap;
+}
+.wchip .de {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.wchip.running .wm {
+	background: #8fc1dc;
+	animation: blink 1.2s ease-in-out infinite;
+}
+.wchip.done {
+	opacity: 0.6;
+}
+.wchip.failed {
+	border-color: color-mix(in srgb, var(--shu) 55%, transparent);
+}
+.wchip.failed .wm {
+	background: var(--shu);
+}
+.wchip.killed {
+	color: var(--cover-dim);
+}
+.wchip.killed .wm {
+	background: none;
+	border: 1px solid var(--graphite);
+}
+.wchip.stalled {
+	border-color: color-mix(in srgb, var(--fusen) 45%, transparent);
+}
+.wchip.stalled .wm {
+	background: var(--fusen);
+}
+/* ほかのタブの「worker n」 */
+.tab .wn {
+	flex: none;
+	margin-left: 6px;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.08);
+	font-size: 0.85em;
+	line-height: 1.5;
+	white-space: nowrap;
+	color: var(--cover-dim);
+}
+.tab .wn.running {
+	color: #8fc1dc;
+}
+.tab .wn.stalled {
+	color: var(--fusen);
+}
+.tab .wn.failed {
+	color: var(--shu);
+}
+
+/* ファイルのドラッグ＆ドロップ（drop.ts が付ける） */
+body.dnd-active .dock {
+	box-shadow: var(--glass-shadow), inset 0 0 0 1px color-mix(in srgb, var(--focus) 35%, transparent);
+}
+.dock.drop-over {
+	box-shadow: var(--glass-shadow), inset 0 0 0 2px color-mix(in srgb, var(--focus) 75%, transparent);
+}
+body.dnd-active .clawd {
+	outline: 1px dashed color-mix(in srgb, var(--focus) 45%, transparent);
+	outline-offset: 3px;
+	border-radius: 10px;
+}
+.clawd.drop-over {
+	outline: 2px solid color-mix(in srgb, var(--focus) 80%, transparent);
+}
+.clawd-bubble.drop-over {
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 2px color-mix(in srgb, var(--focus) 60%, transparent);
+}

@@ -1,0 +1,13 @@
+.hutch/
+node_modules/
+build/
+dist/
+artifacts/
+*.tsbuildinfo
+.cottontail-tmp/
+native/bin/
+.DS_Store
+*.log
+*.tgz
+.env
+.env.*

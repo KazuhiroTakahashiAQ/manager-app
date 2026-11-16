@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>manager</title>
+		<link rel="stylesheet" href="xterm.css" />
+		<link rel="stylesheet" href="index.css" />
+	</head>
+	<body>
+		<div class="app" id="app" data-side="right">
+			<main class="board" aria-label="ダッシュボード">
+				<header class="board-head electrobun-webkit-app-region-drag">
+					<h1 class="date" id="date"></h1>
+					<p class="facts" id="facts"></p>
+					<span class="spacer"></span>
+					<nav class="board-tabs electrobun-webkit-app-region-no-drag" id="board-tabs" aria-label="ダッシュボードとノート"></nav>
+				</header>
+				<div class="board-scroll" id="board" tabindex="-1"></div>
+
+				<section class="reader" id="reader" aria-label="ノート" hidden>
+					<header class="reader-head">
+						<span class="reader-path" id="reader-path"></span>
+						<span class="spacer"></span>
+						<button class="quiet" id="talk-about" type="button">このノートについて話す</button>
+						<button class="quiet" id="open-obsidian" type="button">Obsidian で開く</button>
+						<button class="quiet" id="reader-close" type="button">閉じる</button>
+					</header>
+					<div class="reader-scroll" id="reader-scroll" tabindex="-1">
+						<dl class="props" id="props"></dl>
+						<article class="doc" id="doc"></article>
+					</div>
+				</section>
+			</main>
+
+			<div class="splitter" id="splitter" role="separator" aria-label="境界（ドラッグで大きさを変える。ダブルクリックで 7:3 に戻す）"></div>
+
+			<aside class="dock" aria-label="manager のターミナル">
+				<header class="dock-head electrobun-webkit-app-region-drag">
+					<nav class="tabs electrobun-webkit-app-region-no-drag" id="tabs" aria-label="ターミナル"></nav>
+					<span class="spacer"></span>
+					<button class="side electrobun-webkit-app-region-no-drag" id="layout-toggle" type="button" title="ターミナルを下に置く" aria-label="ターミナルを下に置く">↓</button>
+				</header>
+				<nav class="wstrip" id="wstrip" aria-label="このタブの worker" hidden></nav>
+				<div class="stack" id="stack"></div>
+				<footer class="dock-foot" id="dock-foot"></footer>
+			</aside>
+		</div>
+		<button class="pin" id="pin" type="button" hidden>付箋にして話す</button>
+		<div class="toast" id="toast" role="status" hidden></div>
+		<script type="module" src="index.js"></script>
+	</body>
+</html>
