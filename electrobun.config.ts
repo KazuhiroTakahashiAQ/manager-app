@@ -8,6 +8,8 @@ export default {
 	},
 	build: {
 		mainProcess: "bun",
+		// `dev --watch` を使うときも、画面側の変更ではアプリを作り直さない（src/bun/dev-reload.ts が WebView だけ読み込み直す）
+		watchIgnore: ["src/mainview/**"],
 		bun: {
 			entrypoint: "src/bun/index.ts",
 		},
