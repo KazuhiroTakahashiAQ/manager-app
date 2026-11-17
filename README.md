@@ -8,6 +8,8 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 - **祝日** — holidays-jp API（https://holidays-jp.github.io/api/v1/date.json）から 1 日 1 回取り、userData の `holidays.json` に控える。営業日の計算（準備の期限など）にも使う。
 - **ファイル・URL** — 各セッションとワーカーの記録から、出てきたファイル（Read / Write / Edit と本文中のパス）と URL を拾い、実行状況のその mgr / sub mgr / worker の下に並べる（読んだ / 書いた / 直した / 開いた / 言及、ファイル名とタイトル）。md はアプリ内のタブで、ほかのファイルは既定のアプリで、URL はブラウザで開く。
 - **ノートのタブ** — ダッシュボードの右上のタブで、ダッシュボードと開いたノートを切り替える（Esc でダッシュボードへ）。vault 外の md（ホーム配下）も開ける。
+- **README タブ** — ダッシュボードの隣の固定タブ「README」に、このアプリの README.md を Markdown（見出し・表・コードブロック・リスト・リンク）で出す。読み取り専用。タブを開くたび・画面の再読み込み（ホットリロード含む）・ウィンドウが再び見えたときに bun 側 RPC `readReadme` で読み直すので、常に最新。場所は `MANAGER_APP_ROOT` → `build/` の手前 → 起動元 → `~/Documents/work/manager-app` の順で探す（`src/bun/readme.ts`、`src/mainview/readme-tab.ts`。テストあり）。描画はノートのタブと同じ（marked + DOMPurify）。
+- **今タブ** — ダッシュボードと README の間の固定タブ「今」。一覧ではなく集中画面で、Manager の `state/ui/now.json`（`{task, reason, set_by, set_at}`。mgr が書く。`task` は `tasks/<名>.md` でも素の名前でも可。アプリは読むだけで書かない）のタスクのタイトル・next_action・期限・`## 完了条件`・`## 手順`（Markdown。marked + DOMPurify）と、関連（`research/<名>.md`・waiting_for）・reason を出す。now.json がない・読めない・タスクがないときは `status: doing` で期限が最も近いものを「仮」と付けて出す。タブの下に「聞かれていること」として `messages/` の未回答（`status` 未読 / 対応中 かつ frontmatter `from` あり）を並べ、`options` があれば選択肢ボタン、なければ入力欄（⌘/Ctrl+Enter で送信）。返信は messages の `reply` に書き、`from`（main / system / tasks/<名>.md）のセッションが開いていれば `state/ui/handoff-*.json` で届けて `status: 完了`、閉じている・`worker:<名>` なら `status: 対応中` のまま `reply` に残す。未回答の数はタブのバッジだけ（nudge は足さない）。タブを開くたび・`messages/` `tasks/` `research/` `state/ui/now.json` の変更・ウィンドウが再び見えたときに bun 側 RPC `now` で読み直し、ホットリロード後も「今」タブを戻す（`src/bun/now.ts`、`src/shared/now.ts`、`src/mainview/now-tab.ts`。テストあり）。
 - **実行状況** — 各タブのセッションが呼んだサブエージェント（ワーカー）を `~/.claude/projects/<cwd>/<session>/subagents/` から 2 秒ごとに読み、種類・依頼内容・状態・直近のツールを出す。状態は 作業中 / 完了（`agent-<id>.meta.json` の `finished: true`）/ 失敗・止めた（親の `<session>.jsonl` の queue-operation にある task-notification の `<status>failed</status>` / `<status>killed</status>`、meta の `stoppedByUser`）/ 止まっている（どれでもなく 5 分更新なし）。親の jsonl は前回の続きだけ読む。ノートは盤面の上に重ねて開く（Esc で戻る）。
 - **実行状況の自動開閉** — セッション（mgr / システム / sub mgr）の行は、会話が続いている間は中身（ファイル・URL と worker）を開き、途切れたら畳んで数だけ出す。会話中 = worker が作業中、または claude が動いていて出力中か最後の出力から 10 分以内（`RUN_ACTIVE_MS`、`src/mainview/runs-fold.ts`。テストあり）。左の ▾ / ▸ で手でも開閉でき、手で変えたものは次に会話中かどうかが変わるまで自動で戻さない（自動は始まった・途切れた瞬間だけ効く）。worker の帯のチップから来たときは開く。開閉と最後の出力の時刻は localStorage の `runsFold` / `runsBusyAt` に保ち、再描画・再読み込みのあとも保つ（保存できなくても動く）。最後の出力の時刻は画面側で TermInfo の `active` の変わり目から取るので、画面を開く前の出力は数えない。
 - **右（または下）: ターミナル** — 普通の `claude` を PTY で動かし、xterm.js で表示する。スラッシュコマンド・skill・許可の確認はいつもどおり使える。タブで mgr・システム・sub mgr を切り替える。
@@ -19,13 +21,37 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 - **先読み** — 夜のジョブが書く `state/plan/lookahead.json` から、着手の準備の行の下に推奨開始・準備の期限・工数を、重いタスクには「絞る案」を添える。WBS では推奨開始日に小さな三角（重いものは朱）を出す。
 - **アイデアのグラフ** — アイデア欄の「一覧 / グラフ」で切り替える。ノートのタブの並びの「アイデアのグラフ」（またはアイデア欄の「大きく開く」）で、タブいっぱいに開く。ノードはアイデア（丸。新規 > 温め中 > タスク化 > 見送り の順に薄くなる）、紐づくタスクとその親（四角）、目標（ひし形。`goals.md` の「## 四半期目標」の項目と、アイデアの `goal`）、PJ（輪。`project`）。エッジはアイデア→タスク / 目標 / PJ、タスク→親 / PJ。外部ライブラリなしの canvas と簡単な力学配置（反発・ばね・中心への引力）。ノードのドラッグで動かす、ホイールで拡大縮小、背景のドラッグで移動、ダブルクリックで全体を収める、ホバーで隣だけ強調して名前を出す、押すとノートを開く。`ideas/`・`tasks/` が変わると描き直し、残ったノードの位置は保つ。
 - **エージェント** — どんなエージェントがいるかの一覧。対話（mgr / sub mgr（開いているタブの数とタスク名）/ Clawd くん。役割・モデル・状態）、worker（`Manager/.claude/agents/*.md` の name・description の先頭 1 文・model、`tools` に Write / Edit / Bash がなければ「読むだけ」。いま動いている数）、定期実行（`jobs/*.md` の時刻・曜日・model・前回の結果。無効は薄く）、アプリの見張り（声かけ・活動の記録の有効 / 無効）。押すと定義ファイル（mgr・sub mgr は skill `manager-app`、Clawd くんは `~/work/buddy/CLAUDE.md`、見張りは `settings/manager-app.md`）を開く。
+- **色分け（大分類と小分類）** — `src/mainview/index.css` 末尾の `--seg-*`（大分類）と `--sub-*`（小分類）で定義（ライト値のあとにダーク値で上書き）。大分類は「カードの左の太い線 + 見出し左の形の印」。色だけに頼らず形と文字でも分かる。朱 `--shu`・緑 `--ok`・WBS 進捗線 `.pline`・予定の `--ev-*` とは別の色。
+
+  | 大分類 | 色 | 印 |
+  |---|---|---|
+  | 今日決めること | 橙 | ▲ |
+  | 着手の準備 | 紫 | ◆ |
+  | WBS | 青緑 | ■ |
+  | アイデア | 桃 | ● |
+  | エージェント | 灰青 | ▼ |
+  | 今日のブリーフ | 藍 | ◉ |
+  | 実行状況 | 黄土 | ⬟ |
+  | 動いているもの | 砂 | ◐ |
+
+  | 小分類 | 見分け方 |
+  |---|---|
+  | 今日決めること | メッセージ = 丸い枠、期限 = 角の塗り、急ぎ = 二重線で太字（`k-msg` / `k-due` / `k-urgent`） |
+  | 着手の準備 | 未定義・定義中・着手可の形の印（紫の枠）+ 下線 |
+  | WBS | 行頭の内側の線: 親 = 太く濃い、子 = 中、孫以下 = 細く薄い（レイアウトは動かさない） |
+  | タスクの印 | アイデア = 桃の枠、下調べ = 青の枠、重い = 破線（`tb-idea` / `tb-research`） |
+  | 実行状況の役割 | mgr = 実線、システム = 二重線、sub mgr = 破線、worker = 点線（`rk-main` / `rk-system` / `rk-task`） |
+
+  クラス名の決定は `src/mainview/seg.ts`（テストは `seg.test.ts`）。
 - md ファイルは読むだけ。書き込みは manager（Claude Code）が行い、変更は自動で表示に反映する（`ideas/`・`research/`・`state/plan/*.json` も）。
 
 ## タスク：WBS と着手の準備
 
 - 親子は frontmatter の `parent`（親のファイル名）、並びは `wbs`（1 / 1.1 / 1.2 …）。進みは子の完了数か、`## 手順` のチェック数。
 - WBS の親行は左の ▾ / ▸ で畳む・開く（Enter / Space でも。`aria-expanded` 付き）。畳むと子も孫以降も隠れる。親行の右の数字は子孫の件数（孫以降を含む、表に出ている行の数）。見出しの「すべて畳む / すべて開く」で一括。既定は開いた状態。畳んだ親はタスクのパスで localStorage の `wbsCollapsed` に保ち、再読み込み・ファイル更新による再描画のあとも保つ（保存できない環境でも表示は動き、その場合は毎回開いた状態から）。ロジックは `src/mainview/wbs-fold.ts`（テストあり）。
-- WBS には進捗線（イナズマ線）を重ねる。ヘッダーの今日から出て、開いているタスク（done / dropped 以外、畳んで隠れた行は除く）の現在位置（帯の左端〜右端の「進捗」の割合の点）を上から結び、下端の今日に戻る。今日より左は遅れ（朱 `--shu`）、右は先行（緑 `--ok`）、同じなら墨。帯の塗りも同じ進捗。進捗は `progress`（%）→ 子の完了率 → 手順のチェック率 → 0（done は 100）。予定がまだ来ていないタスクは今日のラインを通る。見出しのチェック「進捗線を表示」「遅れ・先行で色を変える」（既定オン、localStorage の `wbsProgressLine`）。畳む・再描画・リサイズ（ResizeObserver）で引き直す。読むだけでタスクノートは書かない。ロジックは `src/mainview/wbs-progress.ts`（テストあり）。
+- WBS には進捗線（イナズマ線）を重ねる。ヘッダーの今日から出て、開いているタスク（done / dropped 以外、畳んで隠れた行は除く）の現在位置（帯の左端〜右端の「進捗」の割合の点）を上から結び、下端の今日に戻る。今日より左は遅れ（朱 `--shu`）、右は先行（緑 `--ok`）、同じなら墨。帯の塗りも同じ進捗。進捗は `progress`（%）→ 子の完了率 → 手順のチェック率 → 0（done は 100）。予定がまだ来ていないタスクは今日のラインを通る。
+  - 子を持つ親の線は、自分の進捗ではなく子の実績で決める。開いている子孫の末端（孫以降も再帰）のうち最も遅れている（最も左の）位置に合わせ、親が子より遅れて見えることはない。予定（着手・期限）がなく位置が取れない子、done / dropped の子（子孫ごと）は除き、取れる子が 1 つもなければ親自身の進捗で引く。表示時の計算で、親の `progress` は書き換えない（帯の塗りは親自身の進捗のまま）。親の頂点は塗りつぶしの丸。
+  - 見出しのチェック「進捗線を表示」「遅れ・先行で色を変える」（既定オン、localStorage の `wbsProgressLine`）。畳む・再描画・リサイズ（ResizeObserver）で引き直す。読むだけでタスクノートは書かない。ロジックは `src/mainview/wbs-progress.ts`（テストあり）。
 - 完了条件・手順・期限がそろうまで本着手しない（`ready: 未定義 / 定義中 / 着手可`）。準備の期限は `prep_due`、空なら着手日の前営業日、それもなければ期限の 3 営業日前。
 - 「着手の準備」欄は準備の期限が近い順に並ぶ。詳しくは `Manager/docs/schema.md` の「WBS」「着手の準備」。
 
@@ -149,7 +175,7 @@ export PATH="$HOME/.hutch/bin:$PATH"
 pnpm install          # 依存と bun（devDependencies で 1.4.4 に固定）
 pnpm dev              # 起動（hutch electrobun dev）
 pnpm typecheck
-pnpm test             # 純関数のテスト（bun test src/bun）
+pnpm test             # 純関数のテスト（bun test src/bun src/mainview）
 pnpm build            # 配布用ビルド
 ```
 
@@ -163,6 +189,18 @@ pnpm build            # 配布用ビルド
 |---|---|
 | `MANAGER_DIR` | `~/Documents/Obsidian Vault/Manager` |
 | `CLAUDE_PATH` | PATH 上の `claude`、なければ `~/.local/bin/claude` |
+| `MANAGER_APP_ROOT` | 開発時のリロードで監視するリポジトリ。既定は dev のアプリの場所（`build/` の上）か起動元のディレクトリ |
+
+### 開発時のリロード
+
+`pnpm dev`（channel が dev）で動かしている間は、画面側の変更をアプリを再起動せずに反映する（`src/bun/dev-reload.ts`）。claude のセッション（mgr / sub mgr）は bun プロセスの子なので、再起動すると全部終わってしまう。それを避けるための仕組み。
+
+- 反映されるもの: `src/mainview/` の ts と `index.html` / `index.css`、`src/shared/`。保存すると bun 側が画面を作り直し（ts は `Bun.build`、html / css はコピー）、WebView だけを `location.reload()` で読み込み直す。テスト（`*.test.ts`）の変更では読み込み直さない。
+- 読み込み直しても残るもの: ターミナルは bun 側で動き続ける。画面は開き直したときに直近の出力（1 本 512KB まで）から描き直す。前に出していたターミナル・開いていたノートのタブ・スクロール位置は sessionStorage に控えて戻す（アプリを再起動すると消える）。折りたたみ・分割位置・文字の大きさなどは従来どおり localStorage に残る。
+- ビルドに失敗したときは読み込み直さず、トーストとログにエラーを出す。直して保存し直せば反映される。
+- 再起動が要るもの: `src/bun/` の変更、`electrobun.config.ts`、依存の追加。この仕組み自体も bun 側にあるので、入れた直後は 1 回の再起動で有効になる。
+- 配布用（`pnpm build`、stable / canary）では動かない。
+- 公式の `hutch electrobun dev --watch`（hutch.config.ts の `dev`）はアプリごと作り直して再起動する。こちらを使う場合も、`watchIgnore` で `src/mainview/` の変更では再起動しないようにしてある（画面の変更は上の仕組みが反映する）。
 
 アプリ自身の状態（タブとセッション ID）は Electrobun の userData（`terms.json`。声かけの記録は `pulse.json`、定期の compact の記録は `compact.json`）に置く。Manager/ に書くのは、引き継ぎ・予約・壁打ちのファイルを読んで消す（壁打ちは `state/buddy/log.jsonl` に移す）とき、届けられなかったメッセージの `state/ui/handoff-errors.log`、`state/ui/sessions.json`、自動で開いた会議の記録（`state/ui/meeting-open.json`）、活動の記録（`state/activity/`）、Clawd くんのための `state/buddy/`・`ideas/` のフォルダ作成だけ（中身を書くのは Clawd くん）。
 
@@ -191,3 +229,5 @@ pnpm build            # 配布用ビルド
 | `src/shared/types.ts` | RPC スキーマと共有の型 |
 | `src/mainview/` | 画面（HTML / CSS / TS、xterm.js） |
 | `src/mainview/graph.ts` | アイデアのグラフ（canvas と力学配置） |
+| `src/bun/dev-reload.ts` / `dev-reload.test.ts` | 開発時のリロード（画面側の変更で作り直して WebView だけ読み込み直す）とテスト |
+| `src/mainview/reload-state.ts` / `reload-state.test.ts` | リロードの前後で戻す画面の控え（ターミナル・ノートのタブ・スクロール）とテスト |

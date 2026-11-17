@@ -1,4 +1,4 @@
-import { ApplicationMenu, BrowserView, BrowserWindow, Utils } from "electrobun/main";
+import { ApplicationMenu, BrowserView, BrowserWindow, BuildConfig, Utils } from "electrobun/main";
 import { existsSync, readFileSync, rmSync, statSync } from "fs";
 import { homedir } from "os";
 import { dirname, isAbsolute, join, resolve } from "path";
@@ -6,6 +6,7 @@ import type { ManagerRPC } from "../shared/types";
 import { Activity } from "./activity";
 import { Buddy, defaultBuddyDir } from "./buddy";
 import { Compactor } from "./compact";
+import { startDevReload } from "./dev-reload";
 import { Drops } from "./drop";
 import { Hotkey } from "./hotkey";
 import { Holidays } from "./calendar";
@@ -14,6 +15,8 @@ import { localDate, parseNote, Vault } from "./vault";
 import { LinkTracker } from "./links";
 import { MeetingOpener } from "./meeting-open";
 import { Pulse } from "./pulse";
+import { readNow, replyInquiry } from "./now";
+import { readReadme } from "./readme";
 import { readSettings } from "./settings";
 import { projectDir, readWorkers } from "./workers";
 
@@ -52,6 +55,9 @@ const rpc = BrowserView.defineRPC<ManagerRPC>({
 		requests: {
 			getState: () => vault.scan(),
 			readDoc: ({ path }) => vault.read(path) ?? readOutsideMd(path),
+			readReadme: () => readReadme(),
+			now: () => readNow(MANAGER_DIR),
+			replyInquiry: ({ path, text }) => replyInquiry(MANAGER_DIR, path, text, (d) => hub.isOpen(d)),
 			terms: () => hub.list(),
 			workers: () => readWorkers(MANAGER_DIR, hub.sessions()),
 			links: () => lastLinksValue,
@@ -128,6 +134,15 @@ const win = new BrowserWindow({
 });
 
 vault.watch((paths) => rpc.send.stateChanged({ paths }));
+
+// 開発時（hutch electrobun dev）だけ: 画面側の変更で WebView だけ読み込み直す（claude のセッションは生かしたまま）
+const devReload =
+	BuildConfig.getSync().channel === "dev"
+		? startDevReload({
+				reload: () => win.webview.executeJavascript("location.reload()"),
+				notify: (text) => rpc.send.toast({ text }),
+			})
+		: null;
 
 // 壁打ち相手 Clawd くん（~/work/buddy で haiku を 1 本持ち続ける。起動ごとに新しい会話）
 const buddyDir = defaultBuddyDir();
@@ -271,6 +286,7 @@ function readOutsideMd(path: string) {
 }
 
 process.on("exit", () => {
+	devReload?.dispose();
 	hub.disposeAll();
 	buddy.dispose();
 	hotkey.dispose();

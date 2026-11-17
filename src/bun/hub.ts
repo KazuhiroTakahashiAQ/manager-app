@@ -227,6 +227,13 @@ export class Hub {
 		}
 	}
 
+	/** 宛先のセッションが今動いているか（今タブの返信を handoff で届けてよいかの判断。立ち上げはしない） */
+	isOpen(d: Dest): boolean {
+		if (d.kind === "main") return this.main.running;
+		if (d.kind === "system") return this.terms.get(SYSTEM_ID)?.running ?? false;
+		return this.terms.get(`task:${d.taskPath}`)?.running ?? false;
+	}
+
 	private termFor(d: Dest): Term {
 		if (d.kind === "main") return this.main;
 		if (d.kind === "system") return this.ensureSystem();

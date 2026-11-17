@@ -117,6 +117,45 @@ export type VaultState = {
 	scannedAt: number;
 };
 
+/** 「今」タブの、いま集中するタスク 1 件 */
+export type NowFocus = {
+	/** Manager/ からの相対パス（tasks/<名>.md） */
+	taskPath: string;
+	title: string;
+	status: string;
+	nextAction: string;
+	due: string;
+	waitingFor: string;
+	/** 「## 完了条件」「## 手順」の本文（Markdown） */
+	goalMd: string;
+	stepsMd: string;
+	/** research/<名>.md があればそのパス */
+	research: string | null;
+	/** state/ui/now.json の reason（仮のときは空） */
+	reason: string;
+	/** now.json がない・読めない・タスクがない。doing の中で期限が最も近いものを仮に出している */
+	provisional: boolean;
+	/** 仮にした理由（now.json のタスクが見つからない、など） */
+	note: string;
+};
+
+/** 人への問い合わせ（messages/ のうち from があるもの） */
+export type Inquiry = {
+	path: string;
+	title: string;
+	from: string;
+	status: string;
+	priority: string;
+	options: string[];
+	/** 本文（Markdown） */
+	bodyMd: string;
+	/** 保存してある返信（宛先が閉じていて届いていないとき） */
+	reply: string;
+	created: string;
+};
+
+export type NowView = { focus: NowFocus | null; inquiries: Inquiry[] };
+
 export type Doc = {
 	/** Manager/ からの相対パス。vault 内の Manager/ 外は "../DailyNote/..." の形 */
 	path: string;
@@ -162,6 +201,12 @@ export type ManagerRPC = {
 		{
 			getState: { params: {}; response: VaultState };
 			readDoc: { params: { path: string }; response: Doc | null };
+			/** アプリ自身の README.md（呼ぶたびに読み直す。読み取り専用） */
+			readReadme: { params: {}; response: Doc | null };
+			/** 「今」タブの中身（呼ぶたびに読み直す。読み取りのみ） */
+			now: { params: {}; response: NowView };
+			/** 問い合わせに返信する（reply に書く。宛先のセッションが開いていれば handoff で届けて完了、閉じていれば対応中のまま） */
+			replyInquiry: { params: { path: string; text: string }; response: { ok: boolean; delivered: boolean; error?: string } };
 			terms: { params: {}; response: TermInfo[] };
 			workers: { params: {}; response: WorkerInfo[] };
 			/** ソース id（ターミナル id か "worker:<id>"）ごとのリンク */

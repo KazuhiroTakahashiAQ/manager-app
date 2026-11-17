@@ -1181,6 +1181,19 @@ button.gtw:hover {
 .mono .pline circle.ahead {
 	stroke: var(--ink);
 }
+/* 子の最遅に合わせた親の頂点は塗りつぶす（線の色と同じ） */
+.pline circle.rollup {
+	fill: var(--ink);
+}
+.pline circle.rollup.behind {
+	fill: var(--shu);
+}
+.pline circle.rollup.ahead {
+	fill: var(--ok);
+}
+.mono .pline circle.rollup {
+	fill: var(--ink);
+}
 .gantt h2 .gopts {
 	margin-left: auto;
 	display: inline-flex;
@@ -1217,6 +1230,13 @@ button.gtw:hover {
 }
 .glegend i.l-ahd {
 	border-top-color: var(--ok);
+}
+.glegend i.l-roll {
+	width: 7px;
+	height: 7px;
+	border: 0;
+	border-radius: 50%;
+	background: var(--ink);
 }
 
 /* ───── 今日のタイムライン ───── */
@@ -2673,4 +2693,266 @@ body.dnd-active .clawd {
 }
 .clawd-bubble.drop-over {
 	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 2px color-mix(in srgb, var(--focus) 60%, transparent);
+}
+
+/* ───────── 「今」タブ（集中用。.now / .btab-now / .now-* だけ） ───────── */
+.btab-now .now-badge {
+	margin-left: 6px;
+	min-width: 16px;
+	padding: 0 5px;
+	border-radius: 8px;
+	background: var(--shu);
+	color: #fff;
+	font-size: 11px;
+	line-height: 16px;
+	text-align: center;
+	font-weight: 600;
+}
+.now {
+	display: grid;
+	gap: 28px;
+	max-width: 40em;
+}
+.now .now-title {
+	margin: 0 0 10px;
+	font-size: var(--step-3);
+	line-height: 1.35;
+}
+.now .now-flag {
+	margin: 0 0 8px;
+	padding: 4px 8px;
+	border-left: 3px solid var(--fusen);
+	background: var(--paper-2);
+	color: var(--graphite);
+	font-size: var(--step--1);
+}
+.now .now-props {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: 4px 14px;
+	margin: 0 0 12px;
+}
+.now .now-props dt {
+	color: var(--graphite);
+	font-size: var(--step--1);
+}
+.now .now-props dd {
+	margin: 0;
+}
+.now .now-props dd.hot {
+	color: var(--shu);
+	font-weight: 600;
+}
+.now .now-reason {
+	margin: 0 0 12px;
+	color: var(--graphite);
+}
+.now .now-focus h3,
+.now .now-inquiries h3 {
+	margin: 18px 0 6px;
+	font-size: var(--step-1);
+}
+.now .now-empty {
+	color: var(--graphite);
+}
+.now .now-related {
+	margin-top: 18px;
+	color: var(--graphite);
+	font-size: var(--step--1);
+}
+.now .now-q {
+	margin: 0 0 14px;
+	padding: 10px 12px;
+	border: 1px solid var(--rule);
+	border-left: 3px solid var(--shu);
+	background: var(--paper-2);
+}
+.now .now-q header {
+	display: flex;
+	gap: 10px;
+	align-items: baseline;
+}
+.now .now-from {
+	color: var(--graphite);
+	font-size: var(--step--1);
+}
+.now .now-qtitle {
+	flex: 1;
+	font-weight: 600;
+}
+.now .now-qopen {
+	font-size: var(--step--1);
+}
+.now .now-opts,
+.now .now-answer {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: flex-end;
+	margin-top: 8px;
+}
+.now .now-input {
+	flex: 1;
+	min-width: 12em;
+	font: inherit;
+	padding: 6px 8px;
+	border: 1px solid var(--rule);
+	background: var(--paper);
+	color: var(--ink);
+	resize: vertical;
+}
+.now .now-opt,
+.now .now-send {
+	padding: 4px 12px;
+	border: 1px solid var(--ink);
+	border-radius: 4px;
+	background: none;
+	color: var(--ink);
+	font-size: var(--step--1);
+}
+.now .now-opt:hover,
+.now .now-send:hover {
+	background: var(--ink);
+	color: var(--paper);
+}
+.now .now-pending {
+	margin: 8px 0 0;
+	color: var(--graphite);
+	font-size: var(--step--1);
+}
+
+/* ───── セグメント（大分類）とサブカテゴリ（小分類）の色分け ─────
+   大分類 = カードの左の太い線 + 見出しの形の印 + 見出しの文字。
+   小分類 = 色つきの枠のバッジ・行頭の細い線。枠の形（実線・二重線・破線）と文字でも区別する。
+   朱 --shu（期限切れ・承認待ち）・緑 --ok（WBS の進捗線の先行）・予定の種類 --ev-*・pline の色は使わない。 */
+:root {
+	--seg-decide: #b8721d; /* 今日決めること ▲ 橙 */
+	--seg-prep: #7a5bb0; /* 着手の準備 ◆ 紫 */
+	--seg-wbs: #1f8a8a; /* WBS ■ 青緑 */
+	--seg-ideas: #b04a82; /* アイデア ● 桃 */
+	--seg-agents: #66788a; /* エージェント ▼ 灰青 */
+	--seg-brief: #4a58b8; /* 今日のブリーフ ◉ 藍 */
+	--seg-runs: #8f8a2a; /* 実行状況 ⬟ 黄土 */
+	--seg-running: #9a7f5a; /* 動いているもの ◐ 砂 */
+	--sub-wbs-0: color-mix(in srgb, var(--seg-wbs) 100%, transparent); /* 親 = 成果物 */
+	--sub-wbs-1: color-mix(in srgb, var(--seg-wbs) 60%, transparent); /* 子 = 作業 */
+	--sub-wbs-2: color-mix(in srgb, var(--seg-wbs) 30%, transparent); /* 孫以下 */
+	--sub-research: #4f78a8; /* 下調べ */
+	--sub-run-main: #8f8a2a;
+	--sub-run-system: #66788a;
+	--sub-run-task: #a0603a;
+}
+/* ダーク固定（上のライト値を明るい値で上書き） */
+:root {
+	--seg-decide: #e0a04f;
+	--seg-prep: #b49be0;
+	--seg-wbs: #62c4c4;
+	--seg-ideas: #e08fbb;
+	--seg-agents: #a3b1bf;
+	--seg-brief: #8fa6e8;
+	--seg-runs: #cbc36a;
+	--seg-running: #c4a77c;
+	--sub-research: #8fb4e0;
+	--sub-run-main: #cbc36a;
+	--sub-run-system: #a3b1bf;
+	--sub-run-task: #e0a07c;
+}
+
+/* 大分類: カード（--seg を各セグメントで差し替える） */
+.decide { --seg: var(--seg-decide); --mark: "▲"; }
+.prep { --seg: var(--seg-prep); --mark: "◆"; }
+.gantt { --seg: var(--seg-wbs); --mark: "■"; }
+.ideas { --seg: var(--seg-ideas); --mark: "●"; }
+.agents { --seg: var(--seg-agents); --mark: "▼"; }
+.lower > .brief { --seg: var(--seg-brief); --mark: "◉"; }
+[data-key="runs"] { --seg: var(--seg-runs); --mark: "⬟"; }
+[data-key="running"] { --seg: var(--seg-running); --mark: "◐"; }
+.board-scroll > section.decide,
+.board-scroll > section.prep,
+.board-scroll > section.gantt,
+.board-scroll > section.ideas,
+.board-scroll > section.agents,
+.lower > .brief {
+	border-left: 4px solid var(--seg);
+}
+/* 下段の右（実行状況・動いているもの）は 1 枚のカードに 2 つ入るので、それぞれに線を引く */
+[data-key="runs"],
+[data-key="running"] {
+	border-left: 4px solid var(--seg);
+	padding-left: 12px;
+}
+[data-key="runs"] + [data-key="running"] {
+	margin-top: 12px;
+}
+.board-scroll h2[data-fold]::before {
+	content: var(--mark);
+	display: inline-block;
+	margin-right: 8px;
+	color: var(--seg);
+	font-size: 0.8em;
+	line-height: 1;
+}
+
+/* 小分類: 今日決めること（種類ごとに枠の形を変える） */
+.decide .kind.k-msg {
+	border: 1px solid var(--seg-decide);
+	border-radius: 999px; /* 丸 = メッセージ */
+	padding: 0 8px;
+}
+.decide .kind.k-due {
+	border: 1px solid var(--seg-decide);
+	border-radius: 2px; /* 角 = 期限 */
+	background: color-mix(in srgb, var(--seg-decide) 22%, transparent);
+	padding: 0 8px;
+}
+.decide .kind.k-urgent {
+	border: 3px double var(--seg-decide); /* 二重線 = 急ぎ */
+	border-radius: 999px;
+	font-weight: 700;
+	padding: 0 8px;
+}
+/* 小分類: 着手の準備（段階の印は形のまま、枠を紫に） */
+.prep .kind.ready-未定義::before,
+.prep .kind.ready-定義中::before {
+	border-color: var(--seg-prep);
+}
+.prep .kind[class*="ready-"] {
+	border-bottom: 2px solid color-mix(in srgb, var(--seg-prep) 60%, transparent);
+}
+
+/* 小分類: WBS（親 = 太く濃い / 子 = 中 / 孫以下 = 細く薄い。レイアウトは動かさない内側の線） */
+.grow[data-depth="0"] .gname {
+	box-shadow: inset 5px 0 0 var(--sub-wbs-0);
+}
+.grow[data-depth="1"] .gname {
+	box-shadow: inset 3px 0 0 var(--sub-wbs-1);
+}
+.grow:not([data-depth="0"]):not([data-depth="1"]) .gname {
+	box-shadow: inset 2px 0 0 var(--sub-wbs-2);
+}
+
+/* 小分類: タスクの印（アイデア = 桃の実線 / 下調べ = 青の実線 / 重い = 破線のまま） */
+.tb.tb-idea {
+	border-color: var(--seg-ideas);
+}
+.tb.tb-research {
+	border-color: var(--sub-research);
+}
+
+/* 小分類: 実行状況の役割（mgr = 実線 / システム = 二重線 / sub mgr = 破線 / worker = 点線） */
+.runs > li > .role {
+	border: 1px solid var(--sub-run-main);
+	border-radius: 4px;
+	padding: 0 6px;
+}
+.runs > li.rk-system > .role {
+	border: 3px double var(--sub-run-system);
+}
+.runs > li.rk-task > .role {
+	border: 1px dashed var(--sub-run-task);
+}
+.runs .w .role {
+	border: 1px dotted var(--graphite);
+	border-radius: 4px;
+	padding: 0 6px;
 }

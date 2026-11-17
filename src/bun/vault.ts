@@ -203,7 +203,7 @@ export class Vault {
 		const w = watch(this.root, { recursive: true }, (_ev, file) => {
 			if (!file) return;
 			const f = String(file);
-			if (/^state\/plan\/[^/]+\.json$/.test(f)) {
+			if (/^state\/plan\/[^/]+\.json$/.test(f) || f === "state/ui/now.json") {
 				// 先読みは機械用の JSON だが画面に出す
 			} else if (/^(\.git|state|logs|\.obsidian|node_modules)(\/|$)/.test(f)) return;
 			else if (!f.endsWith(".md") && !f.endsWith(".base")) return;

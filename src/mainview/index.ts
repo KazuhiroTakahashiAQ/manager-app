@@ -9,9 +9,14 @@ import { initDrop } from "./drop";
 import { IdeaGraph, type GraphEdge, type GraphNode } from "./graph";
 import { descendantCounts, hiddenFlags, parseCollapsed, serializeCollapsed, type FoldRow } from "./wbs-fold";
 import { isRunActive, noteBusy, parseBusyAt, parseRunFold, reconcileRunFold, serializeBusyAt, serializeRunFold, setRunOpen } from "./runs-fold";
-import { linePosition, lineSvg, parseLineOpts, progressRatio, type Pt } from "./wbs-progress";
+import { linePosition, lineSvg, ownLinePosition, parseLineOpts, progressRatio, rolledUpPosition, type PosNode, type Pt } from "./wbs-progress";
+import { rowKindClass, runKindClass } from "./seg";
 import { MIN_SIZE, clampRatio, gridFlex, ratioFromPointer } from "./layout";
-import type { ActivitySpan, BuddyState, Doc, Item, LinkInfo, LookaheadTask, ManagerRPC, TermInfo, VaultState, WorkerInfo } from "../shared/types";
+import { README_LABEL, README_TAB, docLabel, dynamicDocTabs, shouldRefreshReadme } from "./readme-tab";
+import { NOW_LABEL, NOW_TAB, canSendReply, nowBadge, shouldRefreshNow } from "./now-tab";
+import { unansweredCount } from "../shared/now";
+import { RELOAD_KEY, decodeReloadState, encodeReloadState, pickTerm } from "./reload-state";
+import type { ActivitySpan, BuddyState, Doc, Inquiry, Item, LinkInfo, LookaheadTask, ManagerRPC, NowView, TermInfo, VaultState, WorkerInfo } from "../shared/types";
 
 // ───────── RPC ─────────
 
@@ -236,7 +241,7 @@ function prepHtml(s: VaultState, notReady: Item[]): string {
 function row(it: Item, kind: string, sub: string, due: { text: string; hot: boolean } | null, prep = false, reco = ""): string {
 	return `<div class="row${reco ? " has-reco" : ""}">
 		<button class="open" type="button" data-open="${esc(it.path)}">
-			<span class="kind${prep ? ` ready-${esc(kind)}` : ""}">${esc(kind)}</span>
+			<span class="kind ${prep ? `ready-${esc(kind)}` : rowKindClass(kind, false)}">${esc(kind)}</span>
 			<span class="t">${esc(titleOf(it))}</span>
 			<span class="s">${esc(sub)}</span>
 		</button>
@@ -278,8 +283,8 @@ function taskBadges(t: Item): string {
 	const r = researchOf(t);
 	const la = lookOf(t);
 	const out: string[] = [];
-	if (ids.length) out.push(`<button class="tb" type="button" data-ideas="${esc(t.path)}" title="${esc(ids.map(ideaTitle).join("\n"))}">アイデア ${ids.length}</button>`);
-	if (r) out.push(`<button class="tb" type="button" data-open="${esc(r.path)}" title="${esc(`下調べ（${fm(r, "status") || "下調べ済"}・${fm(r, "updated")}）`)}">下調べ</button>`);
+	if (ids.length) out.push(`<button class="tb tb-idea" type="button" data-ideas="${esc(t.path)}" title="${esc(ids.map(ideaTitle).join("\n"))}">アイデア ${ids.length}</button>`);
+	if (r) out.push(`<button class="tb tb-research" type="button" data-open="${esc(r.path)}" title="${esc(`下調べ（${fm(r, "status") || "下調べ済"}・${fm(r, "updated")}）`)}">下調べ</button>`);
 	if (la?.heavy && isOpenTask(t)) out.push(`<span class="tb heavy" title="${esc(la.simplify ? `絞る案: ${la.simplify}` : "重い")}">重い</span>`);
 	return out.length ? `<span class="tbs">${out.join("")}</span>` : "";
 }
@@ -628,7 +633,12 @@ function ganttHtml(s: VaultState): string {
 	const fr: FoldRow[] = rows.map((r) => ({ key: r.t.path, depth: r.depth }));
 	const kids = descendantCounts(fr);
 	const hidden = hiddenFlags(fr, wbsCollapsed);
-	const body = rows.map((r, i) => ganttRow(r, s.today, from, n, stripes, kids[i]!, hidden[i]!)).join("");
+	// 進捗線の位置。子を持つ親は自分の進捗ではなく、開いている子孫の末端のうち最も遅れている位置に合わせる（表示時に計算。frontmatter は書かない）
+	const plans = rows.map((r) => rowPlan(r.t, r.children, s.today, from, n));
+	const nodes = new Map<string, PosNode>(rows.map((r, i) => [r.t.name, { own: plans[i]!.own, closed: !isOpenTask(r.t), children: [] }]));
+	for (const r of rows) nodes.get(r.t.name)!.children = r.children.flatMap((c) => nodes.get(c.name) ?? []);
+	const kidsX = rows.map((r) => rolledUpPosition({ ...nodes.get(r.t.name)!, own: null }));
+	const body = rows.map((r, i) => ganttRow(r, plans[i]!, kidsX[i]!, s.today, from, n, stripes, kids[i]!, hidden[i]!)).join("");
 	return `<section class="gantt ${foldCls("gantt")}" data-key="gantt" style="--days:${n}">
 		<h2 data-fold="gantt">WBS<span class="note">${esc(md5(from))}〜${esc(md5(days[n - 1]!))}。斜線は準備、帯は作業（着手〜期限）、◆は期限</span>${wbsAllHtml(fr, kids)}${rows.length ? lineOptsHtml() : ""}</h2>
 		<div class="fold-body">${
@@ -637,7 +647,7 @@ function ganttHtml(s: VaultState): string {
 					<div class="gh"><div class="gname">作業</div><div class="gdays">${head}</div></div>${body}
 					<svg class="pline" aria-hidden="true"${lineOpts.line ? "" : ' style="display:none"'}></svg>
 				</div>
-				<div class="glegend"><span><i class="l-line"></i>進捗線（各タスクの現在位置を結ぶ）</span><span><i class="l-beh"></i>今日より左 = 予定より遅れ</span><span><i class="l-ahd"></i>今日より右 = 予定より先行</span><span>帯の塗り = 進捗の割合</span></div>`
+				<div class="glegend"><span><i class="l-line"></i>進捗線（各タスクの現在位置を結ぶ）</span><span><i class="l-beh"></i>今日より左 = 予定より遅れ</span><span><i class="l-ahd"></i>今日より右 = 予定より先行</span><span><i class="l-roll"></i>塗りの丸 = 親（子のうち最も遅れている位置）</span><span>帯の塗り = 進捗の割合</span></div>`
 				: '<p class="none">タスクがない</p>'
 		}</div>
 	</section>`;
@@ -723,7 +733,7 @@ function drawProgressLine() {
 	for (const el of wrap.querySelectorAll<HTMLElement>(".grow .gpos")) {
 		if (el.closest<HTMLElement>(".grow")?.hidden) continue; // 畳んだ親の子は飛ばす
 		const r = el.getBoundingClientRect();
-		pts.push({ x: r.left - gr.left, y: r.top - gr.top });
+		pts.push({ x: r.left - gr.left, y: r.top - gr.top, rollup: el.classList.contains("rollup") });
 	}
 	pts.push({ x: todayX, y: gr.height });
 	svg.setAttribute("viewBox", `0 0 ${gr.width} ${gr.height}`);
@@ -753,17 +763,13 @@ function setAllWbs(fold: boolean) {
 	applyWbsFold();
 }
 
-function ganttRow({ t, depth, children }: GanttRow, today: string, from: string, n: number, stripes: string, kids: number, hidden: boolean): string {
-	const closed = !isOpenTask(t);
-	const r = readiness(t);
+type RowPlan = { start: string; due: string; progress: number; /** 自身の線の位置。予定がなければ null */ own: number | null };
+
+/** 行の予定（着手・期限）と進捗。帯の塗りと、子のない行の進捗線で同じ値を使う */
+function rowPlan(t: Item, children: Item[], today: string, from: string, n: number): RowPlan {
 	const due = fm(t, "due");
 	const est = estimateDays(t);
 	const start = fm(t, "start") || (due && est ? backBiz(due, est - 1) : "");
-	const pos = (d: string) => daysBetween(from, d);
-	const clip = (i: number) => Math.min(Math.max(i, 0), n - 1);
-	const pct = (i: number) => `${(i / n) * 100}%`;
-	const bars: string[] = [];
-	// 進捗（帯の塗りと進捗線で同じ値を使う）
 	const progress = progressRatio({
 		explicit: fm(t, "progress"),
 		childrenDone: children.filter((c) => fm(c, "status") === "done").length,
@@ -772,6 +778,19 @@ function ganttRow({ t, depth, children }: GanttRow, today: string, from: string,
 		stepsTotal: t.prep?.stepsTotal ?? 0,
 		done: fm(t, "status") === "done",
 	});
+	const pos = (d: string) => daysBetween(from, d);
+	const own = ownLinePosition({ todayIdx: pos(today), startIdx: start ? pos(start) : null, dueIdx: due ? pos(due) : null, ratio: progress, n });
+	return { start, due, progress, own };
+}
+
+/** kidsX は子の実績で決めた線の位置（rolledUpPosition）。null なら自身の進捗で引く */
+function ganttRow({ t, depth }: GanttRow, { start, due, progress }: RowPlan, kidsX: number | null, today: string, from: string, n: number, stripes: string, kids: number, hidden: boolean): string {
+	const closed = !isOpenTask(t);
+	const r = readiness(t);
+	const pos = (d: string) => daysBetween(from, d);
+	const clip = (i: number) => Math.min(Math.max(i, 0), n - 1);
+	const pct = (i: number) => `${(i / n) * 100}%`;
+	const bars: string[] = [];
 
 	// 準備：着手可でなければ、今日から準備の期限まで斜線
 	const pd = prepDue(t);
@@ -805,10 +824,10 @@ function ganttRow({ t, depth, children }: GanttRow, today: string, from: string,
 		else if (b >= n) bars.push(`<span class="gedge r" title="期限 ${esc(md5(due))}">${esc(md5(due))} ▶</span>`);
 	}
 
-	// 進捗線の目印（開いている行だけ。完了・取り消しは線を通さない）
+	// 進捗線の目印（開いている行だけ。完了・取り消しは線を通さない）。子を持つ親は子の最遅に合わせる
 	if (!closed) {
-		const x = linePosition({ todayIdx: pos(today), startIdx: start ? pos(start) : null, dueIdx: due ? pos(due) : null, ratio: progress, n });
-		bars.push(`<span class="gpos" style="left:${pct(x)}"></span>`);
+		const x = kidsX ?? linePosition({ todayIdx: pos(today), startIdx: start ? pos(start) : null, dueIdx: due ? pos(due) : null, ratio: progress, n });
+		bars.push(`<span class="gpos${kidsX !== null ? " rollup" : ""}" style="left:${pct(x)}"></span>`);
 	}
 
 	const term = termOfTask(t.path);
@@ -1172,7 +1191,7 @@ function runsHtml(s: VaultState): string {
 			const name = t.kind === "main" ? "全体" : t.title;
 			const nl = Math.min(own?.length ?? 0, 8);
 			const sum = [ws.length ? `worker ${ws.length}` : "", nl ? `ファイル・URL ${nl}` : ""].filter(Boolean).join(" · ");
-			return `<li class="run${open ? "" : " rfolded"}" data-rkey="${esc(t.id)}">
+			return `<li class="run ${runKindClass(t.kind)}${open ? "" : " rfolded"}" data-rkey="${esc(t.id)}">
 				${runToggleHtml(t.id, name, open, !!sum)}<span class="role">${ROLE[t.kind]}</span><button class="link" type="button" data-term="${esc(t.id)}">${esc(name)}</button>
 				<span class="rsum">${esc(sum)}</span><span class="st ${t.active ? "busy" : ""}">${st}</span>
 				${linksHtml(own)}
@@ -1312,13 +1331,15 @@ const isVaultPath = (p: string) => !p.startsWith("/");
 
 async function openDoc(path: string, keepScroll = false) {
 	if (path === GRAPH_TAB) return openGraphTab();
-	const doc = await api.readDoc({ path });
-	if (!doc) return toast(`開けなかった: ${path}`);
+	if (path === NOW_TAB) return openNow(keepScroll);
+	const isReadme = path === README_TAB;
+	const doc = isReadme ? await api.readReadme({}) : await api.readDoc({ path });
+	if (!doc) return toast(`開けなかった: ${isReadme ? "README.md" : path}`);
 	rememberScroll();
 	let tab = docTabs.find((t) => t.path === doc.path);
 	const reopen = !!tab;
 	if (!tab) {
-		tab = { path: doc.path, label: doc.path.split("/").pop()!.replace(/\.md$/, ""), scroll: 0 };
+		tab = { path: doc.path, label: docLabel(doc.path), scroll: 0 };
 		docTabs.push(tab);
 	}
 	const sameDoc = current?.path === doc.path;
@@ -1326,9 +1347,9 @@ async function openDoc(path: string, keepScroll = false) {
 	readerEl.hidden = false;
 	readerScroll.hidden = false;
 	graphTabEl.hidden = true;
-	$("talk-about").hidden = false;
-	$("open-obsidian").hidden = false;
-	readerPath.textContent = isVaultPath(doc.path) ? doc.path : shortPath(doc.path);
+	$("talk-about").hidden = isReadme;
+	$("open-obsidian").hidden = isReadme;
+	readerPath.textContent = isReadme ? "README.md（manager-app、読み取り専用）" : isVaultPath(doc.path) ? doc.path : shortPath(doc.path);
 	$("open-obsidian").textContent = isVaultPath(doc.path) ? "Obsidian で開く" : "既定のアプリで開く";
 	const today = state?.today ?? "";
 	propsEl.innerHTML = Object.entries(doc.fm)
@@ -1342,6 +1363,117 @@ async function openDoc(path: string, keepScroll = false) {
 	readerScroll.scrollTop = keepScroll && sameDoc ? tab.scroll : reopen ? tab.scroll : 0;
 	renderDocTabs();
 }
+
+// ───────── 「今」タブ（集中用。フォーカスのタスクと、人への問い合わせだけ） ─────────
+
+/** 返信欄の書きかけ（再描画しても消さない） */
+const replyDrafts = new Map<string, string>();
+let nowSending = false;
+
+function nowFocusHtml(f: NonNullable<NowView["focus"]>): string {
+	const today = state?.today ?? "";
+	const hot = f.due && f.due <= today && !["done", "dropped"].includes(f.status);
+	const row = (k: string, v: string, cls = "") => (v ? `<dt>${k}</dt><dd class="${cls}">${esc(v)}</dd>` : "");
+	const flag = f.provisional
+		? `<p class="now-flag">仮 — mgr がまだ決めていないので、doing で期限が最も近いタスクを出している${f.note ? `（${esc(f.note)}）` : ""}</p>`
+		: "";
+	const section = (h: string, body: string) => (body ? `<h3>${h}</h3><div class="now-md">${md(body)}</div>` : `<h3>${h}</h3><p class="now-empty">未記入</p>`);
+	const related = [
+		f.research ? `<a href="#" data-open="${esc(f.research)}">下調べ（${esc(f.research)}）</a>` : "",
+		`<a href="#" data-open="${esc(f.taskPath)}">タスクノート</a>`,
+	]
+		.filter(Boolean)
+		.join(" ・ ");
+	return `<section class="now-focus">${flag}<h2 class="now-title">${esc(f.title)}</h2>
+<dl class="now-props">${row("次の一手", f.nextAction)}${row("期限", f.due, hot ? "hot" : "")}${row("待ち", f.waitingFor)}${row("状態", f.status)}</dl>
+${f.reason ? `<p class="now-reason">${esc(f.reason)}</p>` : ""}
+${section("完了条件", f.goalMd)}${section("手順", f.stepsMd)}
+<p class="now-related">関連: ${related}</p></section>`;
+}
+
+function nowInquiryHtml(q: Inquiry): string {
+	const p = esc(q.path);
+	const input = q.options.length
+		? `<div class="now-opts">${q.options.map((o) => `<button type="button" class="now-opt" data-now-opt="${esc(o)}" data-now-path="${p}">${esc(o)}</button>`).join("")}</div>`
+		: `<div class="now-answer"><textarea class="now-input" rows="2" data-now-input="${p}" placeholder="返信（Cmd+Enter で送る）">${esc(replyDrafts.get(q.path) ?? "")}</textarea><button type="button" class="now-send" data-now-send="${p}">送る</button></div>`;
+	const pending = q.reply ? `<p class="now-pending">返信済み・宛先のセッションが閉じていて未配達: ${esc(q.reply)}</p>` : "";
+	return `<article class="now-q"><header><span class="now-from">${esc(q.from)}</span><span class="now-qtitle">${esc(q.title)}</span><a href="#" class="now-qopen" data-open="${p}">ノート</a></header>
+<div class="now-md">${md(q.bodyMd)}</div>${pending}${input}</article>`;
+}
+
+function nowHtml(v: NowView): string {
+	const focus = v.focus ? nowFocusHtml(v.focus) : `<section class="now-focus"><p class="now-empty">いま決まっているタスクがない（now.json も doing のタスクもない）</p></section>`;
+	const inq = v.inquiries.length
+		? `<section class="now-inquiries"><h3>問い合わせ（${v.inquiries.length}）</h3>${v.inquiries.map(nowInquiryHtml).join("")}</section>`
+		: "";
+	return `<div class="now">${focus}${inq}</div>`;
+}
+
+async function openNow(keepScroll = false) {
+	const view = await api.now({});
+	rememberScroll();
+	let tab = docTabs.find((t) => t.path === NOW_TAB);
+	const reopen = !!tab;
+	if (!tab) {
+		tab = { path: NOW_TAB, label: NOW_LABEL, scroll: 0 };
+		docTabs.push(tab);
+	}
+	const sameDoc = current?.path === NOW_TAB;
+	const focused = document.activeElement instanceof HTMLTextAreaElement && docEl.contains(document.activeElement) ? document.activeElement.dataset["nowInput"] : undefined;
+	current = { path: NOW_TAB, fm: {}, body: "", mtime: 0 };
+	readerEl.hidden = false;
+	readerScroll.hidden = false;
+	graphTabEl.hidden = true;
+	$("talk-about").hidden = true;
+	$("open-obsidian").hidden = true;
+	readerPath.textContent = "今（読み取りのみ。決めるのは mgr、問い合わせへの返信だけここでできる）";
+	propsEl.innerHTML = "";
+	docEl.innerHTML = nowHtml(view);
+	readerScroll.scrollTop = keepScroll && sameDoc ? tab.scroll : reopen ? tab.scroll : 0;
+	if (focused) docEl.querySelector<HTMLTextAreaElement>(`textarea[data-now-input="${CSS.escape(focused)}"]`)?.focus();
+	renderDocTabs();
+}
+
+async function sendReply(path: string, text: string) {
+	if (nowSending || !canSendReply(text)) return;
+	nowSending = true;
+	try {
+		const r = await api.replyInquiry({ path, text });
+		if (!r.ok) toast(`返信できなかった: ${r.error ?? "不明"}`);
+		else {
+			replyDrafts.delete(path);
+			toast(r.delivered ? "届けた（問い合わせは完了にした）" : "宛先のセッションが閉じているので、対応中のまま reply に残した（次に開いたとき処理される）");
+		}
+	} catch {
+		toast("返信できなかった");
+	} finally {
+		nowSending = false;
+	}
+	await refreshState();
+	if (current?.path === NOW_TAB) await openNow(true);
+}
+
+docEl.addEventListener("input", (e) => {
+	const t = e.target as HTMLElement;
+	if (t instanceof HTMLTextAreaElement && t.dataset["nowInput"]) replyDrafts.set(t.dataset["nowInput"], t.value);
+});
+docEl.addEventListener("keydown", (e) => {
+	const t = e.target as HTMLElement;
+	if (t instanceof HTMLTextAreaElement && t.dataset["nowInput"] && e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+		e.preventDefault();
+		void sendReply(t.dataset["nowInput"], t.value);
+	}
+});
+docEl.addEventListener("click", (e) => {
+	const el = e.target as HTMLElement;
+	const opt = el.closest<HTMLElement>("[data-now-opt]");
+	if (opt) return void sendReply(opt.dataset["nowPath"]!, opt.dataset["nowOpt"]!);
+	const send = el.closest<HTMLElement>("[data-now-send]");
+	if (send) {
+		const ta = docEl.querySelector<HTMLTextAreaElement>(`textarea[data-now-input="${CSS.escape(send.dataset["nowSend"]!)}"]`);
+		if (ta) void sendReply(send.dataset["nowSend"]!, ta.value);
+	}
+});
 
 function rememberScroll() {
 	const tab = current && docTabs.find((t) => t.path === current!.path);
@@ -1371,13 +1503,19 @@ async function closeDocTab(path: string) {
 function renderDocTabs() {
 	boardTabsEl.innerHTML =
 		`<button class="btab" type="button" data-btab="" aria-current="${current === null}">ダッシュボード</button>` +
-		docTabs
+		`<button class="btab btab-now" type="button" data-btab="${NOW_TAB}" aria-current="${current?.path === NOW_TAB}" title="いま集中すること（未回答の問い合わせ件数がバッジ）">${NOW_LABEL}${nowBadgeHtml()}</button>` +
+		`<button class="btab btab-readme" type="button" data-btab="${README_TAB}" aria-current="${current?.path === README_TAB}" title="このアプリの README">${README_LABEL}</button>` +
+		dynamicDocTabs(docTabs)
 			.map(
 				(t) =>
 					`<button class="btab" type="button" data-btab="${esc(t.path)}" aria-current="${current?.path === t.path}" title="${esc(t.path)}"><span class="label">${esc(t.label)}</span><span class="x" data-bclose="${esc(t.path)}" title="閉じる">×</span></button>`,
 			)
 			.join("") +
 	(docTabs.some((t) => t.path === GRAPH_TAB) ? "" : `<button class="btab gopen" type="button" data-btab="${GRAPH_TAB}" title="アイデア・タスク・目標・PJ のつながりを大きく見る">アイデアのグラフ</button>`);
+}
+function nowBadgeHtml(): string {
+	const b = nowBadge(unansweredCount(state?.messages ?? []));
+	return b ? `<span class="now-badge" aria-label="未回答の問い合わせ ${esc(b)} 件">${b}</span>` : "";
 }
 boardTabsEl.addEventListener("click", (e) => {
 	const el = e.target as HTMLElement;
@@ -1946,6 +2084,10 @@ initDrop({
 
 window.addEventListener("focus", () => post.windowFocus({ focused: true }));
 window.addEventListener("blur", () => post.windowFocus({ focused: false }));
+document.addEventListener("visibilitychange", () => {
+	if (shouldRefreshReadme(current?.path, document.visibilityState === "visible")) void openDoc(README_TAB, true);
+	if (shouldRefreshNow(current?.path, document.visibilityState === "visible")) void openDoc(NOW_TAB, true);
+});
 document.addEventListener("visibilitychange", () => post.windowFocus({ focused: document.visibilityState === "visible" && document.hasFocus() }));
 
 // ───────── ファイル変更の反映 ─────────
@@ -1956,11 +2098,13 @@ async function refreshState() {
 	briefDoc = brief ? await api.readDoc({ path: brief.path }) : null;
 	goalsDoc = await api.readDoc({ path: "goals.md" });
 	renderBoard();
+	renderDocTabs(); // 「今」のバッジ（未回答の問い合わせ件数）
 }
 
 async function onStateChanged(paths: string[]) {
 	await refreshState();
 	if (current && paths.some((p) => p === current!.path)) openDoc(current.path, true);
+	else if (current?.path === NOW_TAB && paths.some((p) => /^(messages\/|tasks\/|research\/|state\/ui\/now\.json$)/.test(p))) void openDoc(NOW_TAB, true);
 }
 
 // ───────── 起動 ─────────
@@ -1983,5 +2127,44 @@ async function onStateChanged(paths: string[]) {
 	clawd.setHistory(bi.history);
 	await refreshState();
 	renderTabs();
-	await showTerm("main");
+	await restoreAfterReload();
 })();
+
+// ───────── 開発時のリロード（WebView だけ読み込み直したとき、開いていた画面に戻す） ─────────
+// bun 側（dev-reload.ts）が画面のコードを作り直して location.reload() する。
+// ターミナルは bun 側で動き続けており、showTerm の attach で直近の出力から描き直される。
+
+function sessionGet(key: string): string | null {
+	try {
+		return sessionStorage.getItem(key);
+	} catch {
+		return null;
+	}
+}
+
+window.addEventListener("pagehide", () => {
+	rememberScroll();
+	try {
+		sessionStorage.setItem(
+			RELOAD_KEY,
+			encodeReloadState({ term: currentId, docs: docTabs.map((t) => ({ ...t })), current: current?.path ?? null, at: Date.now() }),
+		);
+	} catch {
+		// 残せなければ、次は既定の画面で始める
+	}
+});
+
+async function restoreAfterReload() {
+	const saved = decodeReloadState(sessionGet(RELOAD_KEY), Date.now());
+	try {
+		sessionStorage.removeItem(RELOAD_KEY);
+	} catch {
+		// 読めない環境なら何もしない
+	}
+	if (saved && saved.docs.length) {
+		docTabs = saved.docs;
+		if (saved.current) await openDoc(saved.current);
+		else renderDocTabs();
+	}
+	await showTerm(pickTerm(saved?.term, terms.map((t) => t.id)));
+}
