@@ -44,13 +44,40 @@ export function linePosition(i: LineInput): number {
 	return clamp(i.startIdx + i.ratio * (i.dueIdx - i.startIdx + 1));
 }
 
+/** 線の位置が取れるときだけ返す。予定（着手と期限）がない・期限が着手より前なら null（当日のラインに逃がさない） */
+export function ownLinePosition(i: LineInput): number | null {
+	if (i.startIdx === null || i.dueIdx === null || i.dueIdx < i.startIdx) return null;
+	return linePosition(i);
+}
+
+/** 親子の木の 1 つ。own は自身の線の位置（ownLinePosition）、closed は done / dropped（線を通さない） */
+export type PosNode = { own: number | null; closed: boolean; children: PosNode[] };
+
+/**
+ * 子の実績で決めた線の位置。開いている子（孫以降も再帰）の末端のうち、最も遅れている（最も左の）位置を採る。
+ * 今日の位置はどの行も同じなので、計画との差が最大 = 位置が最小。親が子より遅れて見えることはない。
+ * 位置が取れる子が 1 つもなければ自身の位置（own）。閉じた子は子孫ごと除く
+ */
+export function rolledUpPosition(node: PosNode, seen: Set<PosNode> = new Set()): number | null {
+	if (seen.has(node)) return null;
+	seen.add(node);
+	let min: number | null = null;
+	for (const c of node.children) {
+		if (c.closed) continue;
+		const x = rolledUpPosition(c, seen);
+		if (x !== null && (min === null || x < min)) min = x;
+	}
+	return min ?? node.own;
+}
+
 /** 今日の縦線より左（遅れ）・右（先行）・同じ位置。tol px までは同じ位置とみなす */
 export type Side = "behind" | "ahead" | "";
 export function sideOf(x: number, todayX: number, tol = 1): Side {
 	return x < todayX - tol ? "behind" : x > todayX + tol ? "ahead" : "";
 }
 
-export type Pt = { x: number; y: number };
+/** rollup は子の最遅に合わせた親の頂点（塗りつぶしの丸で描く） */
+export type Pt = { x: number; y: number; rollup?: boolean };
 
 /**
  * 進捗線の SVG の中身。pts は「ヘッダー下端の今日 → 各行の目印（上から順）→ 下端の今日」。
@@ -64,7 +91,7 @@ export function lineSvg(pts: Pt[], todayX: number): string {
 		const b = pts[i + 1]!;
 		out += `<polyline class="seg ${sideOf((a.x + b.x) / 2, todayX)}" points="${r(a.x)},${r(a.y)} ${r(b.x)},${r(b.y)}"/>`;
 	}
-	for (const p of pts.slice(1, -1)) out += `<circle class="${sideOf(p.x, todayX)}" cx="${r(p.x)}" cy="${r(p.y)}" r="3.5"/>`;
+	for (const p of pts.slice(1, -1)) out += `<circle class="${sideOf(p.x, todayX)}${p.rollup ? " rollup" : ""}" cx="${r(p.x)}" cy="${r(p.y)}" r="3.5"/>`;
 	return out;
 }
 
