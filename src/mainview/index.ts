@@ -13,7 +13,7 @@ import { linePosition, lineSvg, ownLinePosition, parseLineOpts, progressRatio, r
 import { rowKindClass, runKindClass } from "./seg";
 import { MIN_SIZE, clampRatio, gridFlex, ratioFromPointer } from "./layout";
 import { README_LABEL, README_TAB, docLabel, dynamicDocTabs, shouldRefreshReadme } from "./readme-tab";
-import { SHEET_LABEL, SHEET_PING, SHEET_TAB, isSheetHub, sheetHtml, shouldRefreshSheet } from "./sheet-tab";
+import { SHEET_LABEL, SHEET_TAB, type SheetState, sheetHtml, shouldRefreshSheet } from "./sheet-tab";
 import { NOW_LABEL, NOW_TAB, canSendReply, nowBadge, shouldRefreshNow } from "./now-tab";
 import { unansweredCount } from "../shared/now";
 import { RELOAD_KEY, decodeReloadState, encodeReloadState, pickTerm } from "./reload-state";
@@ -1482,26 +1482,12 @@ async function openNow(keepScroll = false) {
 
 // ───────── 「シート」タブ（sheet-preview のハブを iframe で出す。起動はしない） ─────────
 
-/** ハブが生きているか。ping が views:// から CORS で読めれば app まで確かめ、読めなければ no-cors で到達だけ確かめる */
-async function sheetAlive(): Promise<boolean> {
-	const get = async (init: RequestInit) => {
-		const ctl = new AbortController();
-		const timer = setTimeout(() => ctl.abort(), 1500);
-		try {
-			return await fetch(SHEET_PING, { ...init, signal: ctl.signal });
-		} finally {
-			clearTimeout(timer);
-		}
-	};
+/** ハブの状態（bun 側が ping する。views:// からは CORS で読めないので画面側では確かめない） */
+async function sheetState(): Promise<SheetState> {
 	try {
-		return isSheetHub(await (await get({})).json());
+		return (await api.sheetHub({})).state;
 	} catch {
-		try {
-			await get({ mode: "no-cors" });
-			return true;
-		} catch {
-			return false;
-		}
+		return "down";
 	}
 }
 
@@ -1518,7 +1504,7 @@ async function openSheet() {
 	readerPath.textContent = "シート（sheet-preview のハブ。読み取りタブ）";
 	renderDocTabs();
 	sheetTabEl.innerHTML = "";
-	const alive = await sheetAlive();
+	const alive = await sheetState();
 	if (current?.path !== SHEET_TAB) return; // 確認中に別のタブへ移った
 	sheetTabEl.innerHTML = sheetHtml(alive);
 }

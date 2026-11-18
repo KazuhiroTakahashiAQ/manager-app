@@ -18,6 +18,7 @@ import { Pulse } from "./pulse";
 import { readNow, replyInquiry } from "./now";
 import { readReadme } from "./readme";
 import { readSettings } from "./settings";
+import { defaultHubDeps, ensureHub, hubState } from "./sheethub";
 import { projectDir, readWorkers } from "./workers";
 
 const MANAGER_DIR = resolve(
@@ -33,6 +34,10 @@ const CLAUDE_PATH =
 
 // 前の版（stream-json の会話）の記録は使わない
 for (const old of ["threads.json", "transcripts", "state.json"]) rmSync(join(Utils.paths.userData, old), { recursive: true, force: true });
+
+// sheet-preview のハブ。アプリ起動時に確かめ、いなければ起動する（失敗してもアプリは続ける）
+const hubDeps = defaultHubDeps((m) => console.log(m));
+void ensureHub(hubDeps);
 
 const vault = new Vault(MANAGER_DIR);
 const holidays = new Holidays(join(Utils.paths.userData, "holidays.json"));
@@ -56,6 +61,7 @@ const rpc = BrowserView.defineRPC<ManagerRPC>({
 			getState: () => vault.scan(),
 			readDoc: ({ path }) => vault.read(path) ?? readOutsideMd(path),
 			readReadme: () => readReadme(),
+			sheetHub: () => hubState(hubDeps).then((state) => ({ state })),
 			now: () => readNow(MANAGER_DIR),
 			replyInquiry: ({ path, text }) => replyInquiry(MANAGER_DIR, path, text, (d) => hub.isOpen(d)),
 			terms: () => hub.list(),

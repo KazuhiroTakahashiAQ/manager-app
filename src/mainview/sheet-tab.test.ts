@@ -18,6 +18,11 @@ describe("sheet-tab", () => {
 		expect(sheetHtml(false)).toContain("再確認");
 		expect(sheetHtml(true)).toContain("allow-same-origin");
 	});
+	test("sheetHtml は状態ごとに案内を変える", () => {
+		expect(sheetHtml("foreign")).toContain("別プロセスで使用中");
+		expect(sheetHtml("no-script")).toContain("見つからない");
+		expect(sheetHtml("down")).not.toContain("<iframe");
+	});
 	test("固定タブは dynamicDocTabs から除く", () => {
 		expect(dynamicDocTabs([{ path: SHEET_TAB }, { path: "tasks/a.md" }])).toEqual([{ path: "tasks/a.md" }]);
 	});

@@ -204,6 +204,8 @@ export type ManagerRPC = {
 			readDoc: { params: { path: string }; response: Doc | null };
 			/** アプリ自身の README.md（呼ぶたびに読み直す。読み取り専用） */
 			readReadme: { params: {}; response: Doc | null };
+			/** sheet-preview ハブの今の状態（ping のみ。起動はアプリ起動時に済んでいる） */
+			sheetHub: { params: {}; response: { state: "running" | "started" | "foreign" | "down" | "no-script" | "failed" } };
 			/** 「今」タブの中身（呼ぶたびに読み直す。読み取りのみ） */
 			now: { params: {}; response: NowView };
 			/** 問い合わせに返信する（reply に書く。宛先のセッションが開いていれば handoff で届けて完了、閉じていれば対応中のまま） */
