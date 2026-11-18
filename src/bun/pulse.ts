@@ -7,9 +7,10 @@
 // - 壁打ちが書いた state/buddy/feedback-*.json を拾って合図し、state/buddy/log.jsonl に移す。
 
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
-import { join } from "path";
+import { dirname, join } from "path";
 import type { VaultState } from "../shared/types";
 import { taskMtime, type Run } from "./activity";
+import { overdueNote, parseAt, shouldSeedMessage } from "./catchup";
 import { readSettings, toMin, type AppSettings } from "./settings";
 import { localDate } from "./vault";
 
@@ -47,10 +48,15 @@ const TICK_MS = 30_000;
 export class Pulse {
 	private ledger: Ledger;
 	private startedAt = Date.now();
+	/** 前回アプリが動いていた最後の時刻（ms）。初回は null */
+	private lastAlive: number | null = null;
 
 	constructor(private o: PulseOptions) {
 		this.ledger = this.loadLedger();
-		this.seedMessages();
+		// 止まっていた間に届いた未読は seed せず、勤務時間内の通常の判定で 1 回だけ拾う
+		this.lastAlive = this.loadAlive();
+		this.seedMessages(this.lastAlive);
+		this.beat();
 		setInterval(() => this.tick(), TICK_MS);
 		setTimeout(() => this.tick(), 5_000);
 	}
@@ -61,8 +67,9 @@ export class Pulse {
 			const today = localDate(now);
 			if (this.ledger.day !== today) {
 				this.ledger = { day: today, fired: [], count: 0, lastAt: 0 };
-				this.seedMessages();
+				this.seedMessages(null);
 			}
+			this.beat();
 			const s = this.settings();
 			if (!s.enabled) return;
 			const st = this.o.scan();
@@ -265,22 +272,57 @@ export class Pulse {
 				rmSync(p, { force: true });
 				continue;
 			}
-			const at = parseAt(v.at ?? "", now);
+			let mtime: number;
+			try {
+				mtime = statSync(p).mtimeMs;
+			} catch {
+				continue;
+			}
+			const at = parseAt(v.at ?? "", now, mtime);
 			if (at === null || at > now.getTime()) continue;
-			out.push({ key: `nudge:${f}`, urgent: true, text: `予約していた確認: ${v.text}`, file: p });
+			out.push({ key: `nudge:${f}`, urgent: true, text: `予約していた確認: ${v.text}${overdueNote(at, now.getTime())}`, file: p });
 		}
 		return out;
 	}
 
 	/** 起動時・日替わり時点で既にある未読は始業の声かけ（boot）で扱うので、新着だけを拾う */
-	private seedMessages() {
+	private seedMessages(lastAlive: number | null) {
 		const dir = join(this.o.managerDir, "messages");
 		if (!existsSync(dir)) return;
 		for (const f of readdirSync(dir).filter((x) => x.endsWith(".md"))) {
 			const key = `msg:messages/${f}`;
+			let mtime: number;
+			try {
+				mtime = statSync(join(dir, f)).mtimeMs;
+			} catch {
+				continue;
+			}
+			if (!shouldSeedMessage(mtime, lastAlive)) continue;
 			if (!this.ledger.fired.includes(key)) this.ledger.fired.push(key);
 		}
 		this.saveLedger();
+	}
+
+	private alivePath(): string {
+		return join(dirname(this.o.ledgerPath), "pulse-alive.json");
+	}
+
+	private loadAlive(): number | null {
+		try {
+			const v = JSON.parse(readFileSync(this.alivePath(), "utf-8")) as { at?: number };
+			return typeof v.at === "number" ? v.at : null;
+		} catch {
+			return null;
+		}
+	}
+
+	/** 動いている印（30 秒ごと）。次の起動で「止まっていた間」の起点にする */
+	private beat() {
+		try {
+			writeFileSync(this.alivePath(), JSON.stringify({ at: Date.now() }));
+		} catch (e) {
+			console.error("pulse-alive.json を保存できなかった", e);
+		}
 	}
 
 	private settings(): Settings {
@@ -304,16 +346,4 @@ export class Pulse {
 			console.error("pulse.json を保存できなかった", e);
 		}
 	}
-}
-
-/** "HH:MM"（今日）か ISO 日時 → ms。読めなければ null */
-function parseAt(at: string, now: Date): number | null {
-	if (/^\d{1,2}:\d{2}$/.test(at)) {
-		const d = new Date(now);
-		const [h, m] = at.split(":").map(Number);
-		d.setHours(h!, m!, 0, 0);
-		return d.getTime();
-	}
-	const t = Date.parse(at);
-	return Number.isNaN(t) ? null : t;
 }
