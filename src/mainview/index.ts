@@ -13,6 +13,7 @@ import { linePosition, lineSvg, ownLinePosition, parseLineOpts, progressRatio, r
 import { rowKindClass, runKindClass } from "./seg";
 import { MIN_SIZE, clampRatio, gridFlex, ratioFromPointer } from "./layout";
 import { README_LABEL, README_TAB, docLabel, dynamicDocTabs, shouldRefreshReadme } from "./readme-tab";
+import { SHEET_LABEL, SHEET_PING, SHEET_TAB, isSheetHub, sheetHtml, shouldRefreshSheet } from "./sheet-tab";
 import { NOW_LABEL, NOW_TAB, canSendReply, nowBadge, shouldRefreshNow } from "./now-tab";
 import { unansweredCount } from "../shared/now";
 import { RELOAD_KEY, decodeReloadState, encodeReloadState, pickTerm } from "./reload-state";
@@ -402,6 +403,10 @@ const graphTabEl = document.createElement("div");
 graphTabEl.className = "reader-graph";
 graphTabEl.hidden = true;
 readerEl.appendChild(graphTabEl);
+const sheetTabEl = document.createElement("div");
+sheetTabEl.className = "reader-sheet";
+sheetTabEl.hidden = true;
+readerEl.appendChild(sheetTabEl);
 
 /** goals.md の「## 四半期目標」の番号付き・箇条書きの項目（空は除く） */
 function goalNames(doc: Doc | null): string[] {
@@ -472,6 +477,7 @@ function openGraphTab() {
 	readerEl.hidden = false;
 	readerScroll.hidden = true;
 	graphTabEl.hidden = false;
+	sheetTabEl.hidden = true;
 	readerPath.textContent = "アイデアのグラフ（アイデア・紐づくタスク・目標・PJ）";
 	$("talk-about").hidden = true;
 	$("open-obsidian").hidden = true;
@@ -1367,6 +1373,7 @@ const isVaultPath = (p: string) => !p.startsWith("/");
 async function openDoc(path: string, keepScroll = false) {
 	if (path === GRAPH_TAB) return openGraphTab();
 	if (path === NOW_TAB) return openNow(keepScroll);
+	if (path === SHEET_TAB) return openSheet();
 	const isReadme = path === README_TAB;
 	const doc = isReadme ? await api.readReadme({}) : await api.readDoc({ path });
 	if (!doc) return toast(`開けなかった: ${isReadme ? "README.md" : path}`);
@@ -1382,6 +1389,7 @@ async function openDoc(path: string, keepScroll = false) {
 	readerEl.hidden = false;
 	readerScroll.hidden = false;
 	graphTabEl.hidden = true;
+	sheetTabEl.hidden = true;
 	$("talk-about").hidden = isReadme;
 	$("open-obsidian").hidden = isReadme;
 	readerPath.textContent = isReadme ? "README.md（manager-app、読み取り専用）" : isVaultPath(doc.path) ? doc.path : shortPath(doc.path);
@@ -1459,6 +1467,7 @@ async function openNow(keepScroll = false) {
 	readerEl.hidden = false;
 	readerScroll.hidden = false;
 	graphTabEl.hidden = true;
+	sheetTabEl.hidden = true;
 	$("talk-about").hidden = true;
 	$("open-obsidian").hidden = true;
 	readerPath.textContent = "今（読み取りのみ。決めるのは mgr、問い合わせへの返信だけここでできる）";
@@ -1468,6 +1477,52 @@ async function openNow(keepScroll = false) {
 	if (focused) docEl.querySelector<HTMLTextAreaElement>(`textarea[data-now-input="${CSS.escape(focused)}"]`)?.focus();
 	renderDocTabs();
 }
+
+// ───────── 「シート」タブ（sheet-preview のハブを iframe で出す。起動はしない） ─────────
+
+/** ハブが生きているか。ping が views:// から CORS で読めれば app まで確かめ、読めなければ no-cors で到達だけ確かめる */
+async function sheetAlive(): Promise<boolean> {
+	const get = async (init: RequestInit) => {
+		const ctl = new AbortController();
+		const timer = setTimeout(() => ctl.abort(), 1500);
+		try {
+			return await fetch(SHEET_PING, { ...init, signal: ctl.signal });
+		} finally {
+			clearTimeout(timer);
+		}
+	};
+	try {
+		return isSheetHub(await (await get({})).json());
+	} catch {
+		try {
+			await get({ mode: "no-cors" });
+			return true;
+		} catch {
+			return false;
+		}
+	}
+}
+
+async function openSheet() {
+	rememberScroll();
+	if (!docTabs.some((t) => t.path === SHEET_TAB)) docTabs.push({ path: SHEET_TAB, label: SHEET_LABEL, scroll: 0 });
+	current = { path: SHEET_TAB, fm: {}, body: "", mtime: 0 };
+	readerEl.hidden = false;
+	readerScroll.hidden = true;
+	graphTabEl.hidden = true;
+	sheetTabEl.hidden = false;
+	$("talk-about").hidden = true;
+	$("open-obsidian").hidden = true;
+	readerPath.textContent = "シート（sheet-preview のハブ。読み取りタブ）";
+	renderDocTabs();
+	sheetTabEl.innerHTML = "";
+	const alive = await sheetAlive();
+	if (current?.path !== SHEET_TAB) return; // 確認中に別のタブへ移った
+	sheetTabEl.innerHTML = sheetHtml(alive);
+}
+sheetTabEl.addEventListener("click", (e) => {
+	if ((e.target as HTMLElement).closest("[data-sheet-recheck]")) void openSheet();
+});
 
 async function sendReply(path: string, text: string) {
 	if (nowSending || !canSendReply(text)) return;
@@ -1540,6 +1595,7 @@ function renderDocTabs() {
 		`<button class="btab" type="button" data-btab="" aria-current="${current === null}">ダッシュボード</button>` +
 		`<button class="btab btab-now" type="button" data-btab="${NOW_TAB}" aria-current="${current?.path === NOW_TAB}" title="いま集中すること（未回答の問い合わせ件数がバッジ）">${NOW_LABEL}${nowBadgeHtml()}</button>` +
 		`<button class="btab btab-readme" type="button" data-btab="${README_TAB}" aria-current="${current?.path === README_TAB}" title="このアプリの README">${README_LABEL}</button>` +
+		`<button class="btab btab-sheet" type="button" data-btab="${SHEET_TAB}" aria-current="${current?.path === SHEET_TAB}" title="スプレッドシートのプレビュー（sheet-preview のハブ）">${SHEET_LABEL}</button>` +
 		dynamicDocTabs(docTabs)
 			.map(
 				(t) =>
@@ -2119,6 +2175,7 @@ window.addEventListener("blur", () => post.windowFocus({ focused: false }));
 document.addEventListener("visibilitychange", () => {
 	if (shouldRefreshReadme(current?.path, document.visibilityState === "visible")) void openDoc(README_TAB, true);
 	if (shouldRefreshNow(current?.path, document.visibilityState === "visible")) void openDoc(NOW_TAB, true);
+	if (shouldRefreshSheet(current?.path, document.visibilityState === "visible")) void openDoc(SHEET_TAB);
 });
 document.addEventListener("visibilitychange", () => post.windowFocus({ focused: document.visibilityState === "visible" && document.hasFocus() }));
 
