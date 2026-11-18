@@ -9,7 +9,7 @@
 /** 宛先。main = mgr、system = システム改修 sub mgr、task = そのタスクの sub mgr */
 export type Dest = { kind: "main" } | { kind: "system" } | { kind: "task"; taskPath: string };
 
-export type Handoff = {
+type Handoff = {
 	dest: Dest;
 	from: string;
 	/** 宛先に貼る本文 */
@@ -20,7 +20,7 @@ export type Handoff = {
 	warnings: string[];
 };
 
-export type HandoffResult = { ok: true; handoff: Handoff } | { ok: false; error: string };
+type HandoffResult = { ok: true; handoff: Handoff } | { ok: false; error: string };
 
 const TASK_RE = /^tasks\/[^/]+\.md$/;
 

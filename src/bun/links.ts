@@ -187,7 +187,7 @@ function isRealUrl(url: string): boolean {
 }
 
 /** URL の見出し。よく使うサービスは名前で、ほかはホストと末尾 */
-export function urlLabel(url: string): string {
+function urlLabel(url: string): string {
 	try {
 		const u = new URL(url);
 		const h = u.hostname;

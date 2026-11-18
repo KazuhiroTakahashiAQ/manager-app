@@ -7,7 +7,7 @@
 import { copyFileSync, existsSync, watch, type FSWatcher } from "fs";
 import { join, resolve, sep } from "path";
 
-export type ChangeKind = "copy" | "bundle";
+type ChangeKind = "copy" | "bundle";
 
 /**
  * リポジトリのルートを探す。dev のアプリは <root>/build/dev-macos-arm64/<名前>.app/Contents/MacOS で動くので、

@@ -9,7 +9,7 @@
 
 import type { DropResult } from "../shared/types";
 
-export type DropApi = {
+type DropApi = {
 	dropResolve(p: { files: { name: string; size: number }[] }): Promise<{ paths: (string | null)[] }>;
 	dropCheck(p: { paths: string[] }): Promise<{ items: { path: string; exists: boolean; dir: boolean }[] }>;
 	dropToBuddy(p: { path: string }): Promise<DropResult>;
@@ -251,7 +251,7 @@ async function toClawd(o: DropOptions, p: Payload) {
  * Terminal.app と同じく、シェルで特別な意味を持つ ASCII の記号をバックスラッシュでエスケープする（日本語などはそのまま）。
  * 改行などの制御文字を含むときだけ $'…' で囲む。
  */
-export function shellQuote(p: string): string {
+function shellQuote(p: string): string {
 	if (/[\x00-\x1f\x7f]/.test(p)) {
 		const body = p
 			.replace(/\\/g, "\\\\")

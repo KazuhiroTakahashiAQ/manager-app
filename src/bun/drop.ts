@@ -15,9 +15,9 @@ import { ensureNative } from "./native";
 import dragPathsSource from "../../native/drag-paths.swift" with { type: "text" };
 
 /** Clawd くんに渡せる 1 ファイルの上限 */
-export const BUDDY_DROP_LIMIT = 10 * 1024 * 1024;
+const BUDDY_DROP_LIMIT = 10 * 1024 * 1024;
 /** パスが取れずに画面から送ってもらうとき（ターミナル向け）の上限 */
-export const TERM_UPLOAD_LIMIT = 50 * 1024 * 1024;
+const TERM_UPLOAD_LIMIT = 50 * 1024 * 1024;
 const KEEP_MS = 7 * 86_400_000;
 
 type Upload = { path: string; written: number; limit: number };

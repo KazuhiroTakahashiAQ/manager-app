@@ -3,7 +3,7 @@
 // - ノードのドラッグで移動、ホイールで拡大縮小、背景のドラッグでパン、ホバーで隣接だけ強調、クリックで開く。
 // - データが変わっても、同じ id のノードは位置を保つ。
 
-export type GraphNodeKind = "idea" | "task" | "goal" | "project";
+type GraphNodeKind = "idea" | "task" | "goal" | "project";
 
 export type GraphNode = {
 	id: string;

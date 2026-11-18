@@ -59,7 +59,7 @@ const CAGE_MARGIN = 14;
  * 直後の閉じ括弧は「。」側に付けたまま、その後ろで改行する。すでに改行がある・文末・続けて「。」のときは何もしない。
  * 「。」のあとの空白は改行に置き換える。保存データ・送信テキストは変えない（描画時だけ）。
  */
-export function breakAtPeriod(s: string): string {
+function breakAtPeriod(s: string): string {
 	return s.replace(/(。[」』）)】〕〉》”’"']*)[ \t　]*(?=[^\s。])/g, "$1\n");
 }
 

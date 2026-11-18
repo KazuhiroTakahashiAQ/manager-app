@@ -5,7 +5,7 @@
 export const RUN_ACTIVE_MS = 10 * 60_000;
 
 /** 判定の材料。busy はいま出力中（hub の TermInfo.active、直近 1.5 秒の出力） */
-export type RunSignal = { running: boolean; busy: boolean; lastBusyAt: number; workerRunning: boolean };
+type RunSignal = { running: boolean; busy: boolean; lastBusyAt: number; workerRunning: boolean };
 
 /** 会話が続いているか: worker が作業中、または claude が動いていて出力中か最後の出力から RUN_ACTIVE_MS 以内 */
 export function isRunActive(s: RunSignal, now: number, windowMs = RUN_ACTIVE_MS): boolean {

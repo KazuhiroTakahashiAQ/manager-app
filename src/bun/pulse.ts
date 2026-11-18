@@ -28,7 +28,7 @@ type Candidate = {
 type Ledger = { day: string; fired: string[]; count: number; lastAt: number };
 
 /** 合図を送る先（mgr のターミナル） */
-export type NudgeTarget = { readyForNudge(): boolean; paste(text: string, submit?: boolean): void };
+type NudgeTarget = { readyForNudge(): boolean; paste(text: string, submit?: boolean): void };
 
 type PulseOptions = {
 	managerDir: string;
@@ -104,7 +104,7 @@ export class Pulse {
 		// 人が今日すでに話しかけていれば、始業の声かけは要らない
 		const midnight = new Date(now).setHours(0, 0, 0, 0);
 		if (this.o.lastHumanInput() < midnight) {
-			out.push({ key: "start", urgent: false, text: `始業。/boot-manager で今日の段取りを整え、最初に人が決めることを示す${this.nightNote(now, st, s)}` });
+			out.push({ key: "start", urgent: false, text: `始業。/boot-manager で今日の段取りを整え、最初に人が決めることを示す` });
 		}
 
 		for (const e of st.plan.events) {
@@ -166,17 +166,6 @@ export class Pulse {
 			out.push({ key: "eod", urgent: false, text: "終業の時刻。/eod を持ちかけ、今日の完了と明日のトップ3を確かめる" });
 		}
 		return out;
-	}
-
-	/** 始業の合図に添える夜の成果（research/ と state/plan/lookahead.json の更新時刻から） */
-	private nightNote(now: Date, st: VaultState, s: Settings): string {
-		const y = new Date(now);
-		y.setDate(y.getDate() - 1);
-		y.setHours(Math.floor(s.workEnd / 60), s.workEnd % 60, 0, 0);
-		const n = st.research.filter((r) => r.mtime >= y.getTime()).length;
-		const la = st.lookahead?.generated ?? "";
-		if (!n && !la) return "";
-		return `。夜の下調べ: research 更新 ${n} 件、先読み ${la || "なし"}`;
 	}
 
 	/** 活動の記録から拾う脱線と停滞 */

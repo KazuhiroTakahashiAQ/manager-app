@@ -6,7 +6,7 @@ export const RELOAD_KEY = "reloadState";
 /** これより古い控えは使わない（リロードの直前に書いたものだけを使う） */
 export const RELOAD_MAX_AGE_MS = 60_000;
 
-export type SavedDocTab = { path: string; label: string; scroll: number };
+type SavedDocTab = { path: string; label: string; scroll: number };
 export type ReloadState = {
 	/** 前に出していたターミナル（mgr / sub mgr の id） */
 	term: string;

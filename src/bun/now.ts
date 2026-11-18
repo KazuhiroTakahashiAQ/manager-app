@@ -232,7 +232,7 @@ function readInquiries(dir: string): Inquiry[] {
 
 // ───────── 返信 ─────────
 
-export type ReplyResult = { ok: boolean; delivered: boolean; error?: string };
+type ReplyResult = { ok: boolean; delivered: boolean; error?: string };
 
 const stamp = (d: Date) => {
 	const p = (n: number) => String(n).padStart(2, "0");

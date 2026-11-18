@@ -18,7 +18,7 @@ import { localDate } from "./vault";
 import { projectDir } from "./workers";
 
 /** compact を送る相手（Term の一部） */
-export type CompactTarget = {
+type CompactTarget = {
 	id: string;
 	rec: { kind: TermKind; sessionId: string; taskPath: string | null };
 	running: boolean;
@@ -63,7 +63,7 @@ export function compactInstruction(kind: TermKind, taskPath: string | null): str
  * セッションのいまの文脈の大きさ（トークン）。末尾の assistant 行の usage（input + cache_read + cache_creation）。
  * それより後に compact の境目があれば、compact 後の大きさ（なければ 0）。記録がなければ null。
  */
-export function contextTokens(cwd: string, sessionId: string): number | null {
+function contextTokens(cwd: string, sessionId: string): number | null {
 	const file = join(projectDir(cwd), `${sessionId}.jsonl`);
 	if (!existsSync(file)) return null;
 	let text = "";

@@ -39,7 +39,7 @@ export function ensureBuddyFiles(managerDir: string, buddyDir: string) {
 	if (!existsSync(cp)) writeFileSync(cp, buddyClaudeMd(managerDir, buddyDir));
 }
 
-export function buddyClaudeMd(managerDir: string, buddyDir: string): string {
+function buddyClaudeMd(managerDir: string, buddyDir: string): string {
 	const m = managerDir;
 	return `# Clawd くん
 

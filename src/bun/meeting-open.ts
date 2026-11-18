@@ -13,7 +13,7 @@ import { localDate, parseNote } from "./vault";
 
 type Event = DayPlan["events"][number];
 type OpenSettings = Pick<AppSettings, "meetingOpenBefore" | "meetingOpenUnanswered">;
-export type CalendarJob = { time?: string; days?: string; last_status?: string; last_run?: string };
+type CalendarJob = { time?: string; days?: string; last_status?: string; last_run?: string };
 export type Ledger = { opened: { key: string; day: string; at: string }[]; staleWarned: string };
 
 const MEETING_HOSTS = new Set(["meet.google.com", "teams.microsoft.com", "teams.live.com"]);
@@ -32,19 +32,19 @@ export function isMeetingUrl(url: string): boolean {
 	}
 }
 
-export function meetingKind(url: string): "Meet" | "Teams" {
+function meetingKind(url: string): "Meet" | "Teams" {
 	return /^https:\/\/teams\./i.test(url) ? "Teams" : "Meet";
 }
 
 /** "YYYY-MM-DD" と "HH:MM"（または "YYYY-MM-DDTHH:MM"）をローカル時刻の Date に */
-export function localTime(date: string, hhmm = ""): Date | null {
+function localTime(date: string, hhmm = ""): Date | null {
 	const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2}))?/.exec(hhmm ? `${date}T${hhmm}` : date);
 	if (!m) return null;
 	const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0));
 	return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export function eventKey(date: string, e: Pick<Event, "start" | "title" | "meet">): string {
+function eventKey(date: string, e: Pick<Event, "start" | "title" | "meet">): string {
 	return `${date} ${e.start} ${e.title} ${e.meet}`;
 }
 
@@ -123,7 +123,7 @@ export function prune(ledger: Ledger, today: string): Ledger {
 	return { opened: ledger.opened.filter((o) => o.day >= today), staleWarned: ledger.staleWarned };
 }
 
-export type MeetingOpenerOptions = {
+type MeetingOpenerOptions = {
 	managerDir: string;
 	/** 既定は Manager/state/ui/meeting-open.json */
 	ledgerPath?: string;
@@ -222,7 +222,7 @@ export class MeetingOpener {
 	}
 }
 
-export function readJob(managerDir: string): CalendarJob | null {
+function readJob(managerDir: string): CalendarJob | null {
 	const p = join(managerDir, "jobs", "calendar.md");
 	if (!existsSync(p)) return null;
 	try {

@@ -1,6 +1,6 @@
 // WBS の進捗線（イナズマ線）。DOM に触れない部分だけ（テストできるように）
 
-export type ProgressInput = {
+type ProgressInput = {
 	/** タスクノートの frontmatter `progress`（0〜100 のおおよその値。"40" "40%" も可）。空なら自動 */
 	explicit?: string;
 	childrenDone: number;
@@ -20,7 +20,7 @@ export function progressRatio(i: ProgressInput): number {
 	return 0;
 }
 
-export type LineInput = {
+type LineInput = {
 	/** 表の左端から数えた今日の列（0 始まり） */
 	todayIdx: number;
 	/** 着手日・期限の列。決まっていなければ null（予定が来ていない） */
@@ -71,8 +71,8 @@ export function rolledUpPosition(node: PosNode, seen: Set<PosNode> = new Set()):
 }
 
 /** 今日の縦線より左（遅れ）・右（先行）・同じ位置。tol px までは同じ位置とみなす */
-export type Side = "behind" | "ahead" | "";
-export function sideOf(x: number, todayX: number, tol = 1): Side {
+type Side = "behind" | "ahead" | "";
+function sideOf(x: number, todayX: number, tol = 1): Side {
 	return x < todayX - tol ? "behind" : x > todayX + tol ? "ahead" : "";
 }
 
@@ -96,7 +96,7 @@ export function lineSvg(pts: Pt[], todayX: number): string {
 }
 
 /** 表示の切り替え（localStorage の wbsProgressLine）。既定は線も色分けもオン。読めない・壊れていても既定で動く */
-export type LineOpts = { line: boolean; color: boolean };
+type LineOpts = { line: boolean; color: boolean };
 export function parseLineOpts(raw: string | null): LineOpts {
 	const def: LineOpts = { line: true, color: true };
 	if (!raw) return def;

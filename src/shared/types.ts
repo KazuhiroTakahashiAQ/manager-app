@@ -3,7 +3,7 @@
 export type Frontmatter = Record<string, string>;
 
 /** タスクの準備状況（本文の「## 完了条件」「## 手順」から読む） */
-export type TaskPrep = {
+type TaskPrep = {
 	goal: boolean;
 	steps: boolean;
 	stepsDone: number;
