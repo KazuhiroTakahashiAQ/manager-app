@@ -66,9 +66,10 @@ export class Hub {
 		return this.terms.get(id);
 	}
 
-	/** すべてのターミナル（main → system → task の順） */
+	/** すべてのターミナル（main → system → self → task の順。同じ種類の中は開いた順＝Map の挿入順。
+	 * 出力や入力のたびに更新される lastActive では並べない（動いたタブが末尾に移ってしまう）） */
 	all(): Term[] {
-		return [...this.terms.values()].sort((a, b) => ORDER[a.rec.kind] - ORDER[b.rec.kind] || a.rec.lastActive - b.rec.lastActive);
+		return [...this.terms.values()].sort((a, b) => ORDER[a.rec.kind] - ORDER[b.rec.kind]);
 	}
 
 	list(): TermInfo[] {
