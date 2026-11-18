@@ -1947,15 +1947,17 @@ function onTerms(list: TermInfo[]) {
 
 function renderTabs() {
 	const now = Date.now();
+	const keepTop = tabsEl.scrollTop;
 	tabsEl.innerHTML = terms
 		.map((t) => {
 			const mk = t.active ? '<span class="mk busy"></span>' : t.unread ? '<span class="mk unread"></span>' : !t.running ? '<span class="mk off"></span>' : "";
 			const close = t.kind === "task" ? `<span class="x" data-close="${esc(t.id)}" title="sub mgr を閉じる（タスクノートは残る）">×</span>` : "";
 			const tip = t.taskPath ?? (t.kind === "system" ? "システム改修 sub mgr（manager システム自体の改修。日をまたいでも同じ会話）" : "mgr（人の窓口とルーティング）");
 			const badge = t.id === currentId ? "" : workerBadge(t.id, now);
-			return `<button class="tab" type="button" data-term="${esc(t.id)}" aria-current="${t.id === currentId}" title="${esc(tip)}">${mk}<span class="role">${ROLE[t.kind]}</span>${t.kind === "task" ? `<span class="label">${esc(t.title)}</span>` : ""}${badge}${close}</button>`;
+			return `<button class="tab" type="button" data-term="${esc(t.id)}" aria-current="${t.id === currentId}" title="${esc(tip)}">${mk}<span class="tx"><span class="role">${ROLE[t.kind]}</span>${t.kind === "task" ? `<span class="label">${esc(t.title)}</span>` : ""}</span>${badge}${close}</button>`;
 		})
 		.join("");
+	tabsEl.scrollTop = keepTop;
 	renderStrip(now);
 	stripKey = workersKey(now);
 }

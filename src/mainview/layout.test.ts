@@ -23,7 +23,7 @@ describe("gridFlex", () => {
 });
 
 describe("ratioFromPointer", () => {
-	const min = { board: 360, dock: 280 };
+	const min = { board: 360, dock: 440 };
 	// 盤面とターミナルの範囲 8..1432（幅 1424）、境界 8px → 2 つの領域の合計 1416
 	const start = 8;
 	const end = 1432;
@@ -44,6 +44,6 @@ describe("ratioFromPointer", () => {
 		expect(r).toBeLessThanOrEqual(RATIO_MAX);
 	});
 	test("狭すぎる窓では最小値の比にする", () => {
-		expect(ratioFromPointer(100, 0, 500, 8, min)).toBeCloseTo(clampRatio(360 / 640), 6);
+		expect(ratioFromPointer(100, 0, 500, 8, min)).toBeCloseTo(clampRatio(360 / 800), 6);
 	});
 });

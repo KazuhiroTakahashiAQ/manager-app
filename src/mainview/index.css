@@ -484,7 +484,7 @@ button.deep:hover {
 /* ───── 盤面とターミナルの割り付け ───── */
 .app,
 .app[data-side="right"] {
-	grid-template-columns: minmax(360px, var(--board, 7fr)) 6px minmax(280px, var(--dock, 3fr));
+	grid-template-columns: minmax(360px, var(--board, 7fr)) 6px minmax(440px, var(--dock, 3fr));
 	grid-template-rows: 100vh;
 }
 .app[data-side="bottom"] {
@@ -513,9 +513,6 @@ button.deep:hover {
 .splitter:hover,
 .app.dragging .splitter {
 	background: var(--graphite);
-}
-.app[data-side="bottom"] .dock-head {
-	height: 36px;
 }
 .app[data-side="bottom"] .board,
 .app[data-side="bottom"] .dock {
@@ -708,8 +705,10 @@ button.side:hover {
 
 /* ───── ターミナル（右の帯） ───── */
 .dock {
-	display: flex;
-	flex-direction: column;
+	display: grid;
+	/* 左: ターミナル本体、右: 縦タブ列（下配置でも常に右） */
+	grid-template-columns: minmax(0, 1fr) 160px;
+	grid-template-rows: auto auto minmax(0, 1fr) auto;
 	min-height: 0;
 	min-width: 0;
 	background: #1b201c;
@@ -722,25 +721,46 @@ button.side:hover {
 	background: var(--cover);
 	padding: 0 12px;
 }
-.tabs {
+.dock-head,
+.wstrip,
+.stack,
+.dock-foot {
+	grid-column: 1;
+}
+.vtabs {
+	grid-column: 2;
+	grid-row: 1 / -1;
 	display: flex;
-	align-items: flex-end;
-	gap: 4px;
-	overflow-x: auto;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 2px;
+	padding: 8px 0 8px 6px;
+	overflow-y: auto;
+	overflow-x: hidden;
 	scrollbar-width: none;
 	min-width: 0;
+	min-height: 0;
+	border-left: 1px solid var(--hair, rgba(255, 255, 255, 0.08));
 }
 .tab {
 	flex: none;
-	display: inline-flex;
+	display: flex;
 	align-items: center;
-	max-width: 220px;
+	width: 100%;
+	text-align: left;
 	background: none;
 	border: 0;
-	border-radius: 6px 6px 0 0;
-	padding: 6px 12px 8px;
+	border-left: 2px solid transparent;
+	border-radius: 8px 0 0 8px;
+	padding: 6px 8px;
 	color: #a9b3a2;
 	font-size: var(--step--1);
+}
+.tab .tx {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
 }
 .tab .role {
 	font-family: var(--mono, ui-monospace, monospace);
@@ -749,7 +769,7 @@ button.side:hover {
 	white-space: nowrap;
 }
 .tab .role + .label {
-	margin-left: 6px;
+	margin-top: 1px;
 }
 .tab .label {
 	overflow: hidden;
@@ -763,6 +783,7 @@ button.side:hover {
 	background: #1b201c;
 	color: #e2e6dc;
 	font-weight: 500;
+	border-left-color: #8fc1dc;
 }
 .tab .x {
 	margin-left: 8px;
@@ -2451,7 +2472,7 @@ body {
 }
 .app,
 .app[data-side="right"] {
-	grid-template-columns: minmax(360px, var(--board, 7fr)) 8px minmax(280px, var(--dock, 3fr));
+	grid-template-columns: minmax(360px, var(--board, 7fr)) 8px minmax(440px, var(--dock, 3fr));
 	grid-template-rows: minmax(0, 1fr);
 }
 .app[data-side="bottom"] {
@@ -2545,16 +2566,16 @@ body {
 .dock-head,
 .app[data-side="bottom"] .dock-head {
 	background: none;
-	height: 48px;
+	height: 36px;
 	padding: 0 8px 4px;
 	align-items: flex-end;
 }
 .app[data-side="bottom"] .dock-head {
-	height: 40px;
+	height: 36px;
 }
 .tab {
-	border-radius: 8px;
-	padding: 5px 12px;
+	border-radius: 8px 0 0 8px;
+	padding: 6px 8px;
 }
 .tab[aria-current="true"] {
 	background: rgba(255, 255, 255, 0.07);
