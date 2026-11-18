@@ -2608,9 +2608,31 @@ body {
 .wstrip {
 	flex: none;
 	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 4px;
+	padding: 4px 8px 2px 12px;
+}
+.wlayer {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	font-size: var(--step--1);
+	color: var(--cover-dim);
+	white-space: nowrap;
+	overflow: hidden;
+}
+.wlayer .role {
+	color: var(--cover-ink);
+}
+.wlayer .label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.wchips {
+	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 4px 8px 2px 12px;
 	overflow-x: auto;
 	scrollbar-width: none;
 }

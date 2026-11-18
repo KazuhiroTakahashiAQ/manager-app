@@ -1006,15 +1006,19 @@ function workerBadge(termId: string, now: number): string {
 
 function renderStrip(now: number) {
 	const ws = stripWorkers(currentId, now);
-	const html = ws
+	const cur = terms.find((t) => t.id === currentId);
+	// 上段は今のレイヤー（mgr / sub mgr / システム）のラベル。worker はその下に横並び
+	const label = cur ? `<div class="wlayer"><span class="role">${ROLE[cur.kind]}</span>${cur.kind === "task" ? `<span class="label">${esc(cur.title)}</span>` : ""}</div>` : "";
+	const chips = ws
 		.map(
 			(w) =>
 				`<button class="wchip ${w.state}" type="button" data-wid="${esc(w.id)}" data-wterm="${esc(w.termId)}"><span class="wm"></span><span class="ty">${esc(w.type)}</span>${w.description ? `<span class="de">${esc(w.description)}</span>` : ""}</button>`,
 		)
 		.join("");
+	const html = label + (chips ? `<div class="wchips">${chips}</div>` : "");
 	// 中身が同じなら触らない（ホバー中の説明を消さない）
 	if (stripHtml !== html) wstripEl.innerHTML = stripHtml = html;
-	wstripEl.hidden = !ws.length;
+	wstripEl.hidden = !html;
 }
 
 /** 表示中の帯・バッジの形。変わったときだけ描き直す */
