@@ -2884,6 +2884,7 @@ body.dnd-active .clawd {
 	--sub-research: #4f78a8; /* 下調べ */
 	--sub-run-main: #8f8a2a;
 	--sub-run-system: #66788a;
+	--sub-run-self: #6a8f6a;
 	--sub-run-task: #a0603a;
 }
 /* ダーク固定（上のライト値を明るい値で上書き） */
@@ -2899,6 +2900,7 @@ body.dnd-active .clawd {
 	--sub-research: #8fb4e0;
 	--sub-run-main: #cbc36a;
 	--sub-run-system: #a3b1bf;
+	--sub-run-self: #8fc08f;
 	--sub-run-task: #e0a07c;
 }
 
@@ -2992,6 +2994,9 @@ body.dnd-active .clawd {
 .runs > li.rk-system > .role {
 	border: 3px double var(--sub-run-system);
 }
+.runs > li.rk-self > .role {
+	border: 3px double var(--sub-run-self);
+}
 .runs > li.rk-task > .role {
 	border: 1px dashed var(--sub-run-task);
 }
@@ -2999,4 +3004,32 @@ body.dnd-active .clawd {
 	border: 1px dotted var(--graphite);
 	border-radius: 4px;
 	padding: 0 6px;
+}
+
+/* self impl mgr のカード（自動 eod の結果と、自己改善タブへの入口） */
+.selfmgr {
+	margin: 0 0 var(--space-3, 16px);
+}
+.selfrow {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 16px;
+	font-size: var(--step--1);
+}
+.selfrow .sf {
+	color: var(--cover-dim, inherit);
+}
+.selfrow.bad .sf:nth-child(2) {
+	color: var(--shu, #c0392b);
+}
+.selfrow .selfgo {
+	margin-left: auto;
+	padding: 2px 12px;
+	border: 1px solid var(--hair, currentColor);
+	border-radius: 999px;
+	background: none;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
 }

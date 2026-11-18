@@ -1,13 +1,13 @@
 // セッション間メッセージ（state/ui/handoff-*.json）の解釈。ファイル・ターミナルには触らない純関数だけを置く（hub.ts が使う）。
 //
-//   { "to": "main" | "system" | "tasks/<名>.md", "from": "mgr" | "system" | "<sub mgr のタイトル>", "brief": "…", "reply_to": "<to と同じ形式>" }
+//   { "to": "main" | "system" | "self" | "tasks/<名>.md", "from": "mgr" | "system" | "self" | "<sub mgr のタイトル>", "brief": "…", "reply_to": "<to と同じ形式>" }
 //
 // - 従来の { "task": "tasks/…md", "brief": "…" } も読む（to = task、from = mgr）。
 // - 本文の先頭に「[<from> から]」を付ける（brief が既に「[」で始まるなら付けない。従来の「[mgr から: 人の指示]」互換）。
 // - reply_to があれば、返信のしかたを末尾に 1 行足す。
 
-/** 宛先。main = mgr、system = システム改修 sub mgr、task = そのタスクの sub mgr */
-export type Dest = { kind: "main" } | { kind: "system" } | { kind: "task"; taskPath: string };
+/** 宛先。main = mgr、system = システム改修 sub mgr、self = 自己改善 sub mgr（self impl mgr）、task = そのタスクの sub mgr */
+export type Dest = { kind: "main" } | { kind: "system" } | { kind: "self" } | { kind: "task"; taskPath: string };
 
 type Handoff = {
 	dest: Dest;
@@ -24,12 +24,13 @@ type HandoffResult = { ok: true; handoff: Handoff } | { ok: false; error: string
 
 const TASK_RE = /^tasks\/[^/]+\.md$/;
 
-/** "main" / "system" / "tasks/<名>.md" を宛先にする。読めなければ null */
+/** "main" / "system" / "self" / "tasks/<名>.md" を宛先にする。読めなければ null */
 export function parseDest(v: unknown): Dest | null {
 	if (typeof v !== "string") return null;
 	const s = v.trim();
 	if (s === "main") return { kind: "main" };
 	if (s === "system") return { kind: "system" };
+	if (s === "self") return { kind: "self" };
 	if (TASK_RE.test(s) && !s.includes("\0")) return { kind: "task", taskPath: s };
 	return null;
 }
@@ -50,7 +51,7 @@ export function interpretHandoff(raw: unknown, taskExists: (taskPath: string) =>
 	const to = legacy ? h["task"] : h["to"];
 	if (to === undefined) return { ok: false, error: "宛先（to）がない" };
 	const dest = parseDest(to);
-	if (!dest) return { ok: false, error: `宛先が不正: ${JSON.stringify(to)}（main / system / tasks/<名>.md）` };
+	if (!dest) return { ok: false, error: `宛先が不正: ${JSON.stringify(to)}（main / system / self / tasks/<名>.md）` };
 	if (dest.kind === "task" && !taskExists(dest.taskPath)) return { ok: false, error: `宛先のタスクノートがない: ${dest.taskPath}` };
 
 	const brief = typeof h["brief"] === "string" ? h["brief"].trim() : "";

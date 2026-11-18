@@ -56,6 +56,7 @@ export function compactInstruction(kind: TermKind, taskPath: string | null): str
 	const drop = "生ログ・ツール出力は捨てる";
 	if (kind === "main") return `次を残して要約する: 未完了のタスクと next_action、人に確認中の事項、sub mgr に渡した依頼と返事待ちの件、決まったこと。${drop}`;
 	if (kind === "system") return `次を残して要約する: 担当の改修の依頼・完了条件・手順・決定・worker に出した作業と結果・次の一手、mgr への報告待ち。${drop}`;
+	if (kind === "self") return `次を残して要約する: 自動 eod の結果と未処理の提案、承認待ちの retro、人に確認中の事項、直近の改善の決定と次の一手、mgr への報告待ち。${drop}`;
 	return `次を残して要約する: 担当タスク（${taskPath ?? "不明"}）の完了条件・手順・決定・次の一手。${drop}`;
 }
 

@@ -114,6 +114,8 @@ export type VaultState = {
 	/** 活動の記録の最後の 1 区間（今日の分） */
 	activity: ActivitySpan | null;
 	inboxCount: number;
+	/** status=提案 の retro の件数（self impl mgr のカードに出す） */
+	retroPending: number;
 	scannedAt: number;
 };
 
@@ -168,8 +170,9 @@ export type Doc = {
  * ターミナル 1 つ = claude の対話セッション 1 つ。
  * main は mgr（人の窓口とルーティング。日替わりで新しいセッション）。task はタスク 1 件の sub mgr。
  * system はシステム改修 sub mgr（manager システム自体の改修。固定 id "system"、日をまたいでも同じセッション）。
+ * self は自己改善 sub mgr（self impl mgr。eod 処理・retro・改善提案。固定 id "self"、日をまたいでも同じセッション）。
  */
-export type TermKind = "main" | "system" | "task";
+export type TermKind = "main" | "system" | "self" | "task";
 
 /** 壁打ち相手 Clawd くんの状態と、やり取りの 1 行 */
 export type BuddyState = "starting" | "idle" | "replying" | "stopped";

@@ -27,6 +27,7 @@ type HubOptions = {
 
 const ACTIVE_MS = 1500;
 const SYSTEM_ID = "system";
+const SELF_ID = "self";
 /** 読めない handoff ファイルを、書きかけとみなして待つ時間 */
 const UNREADABLE_MS = 60_000;
 
@@ -38,11 +39,13 @@ export class Hub {
 	constructor(private o: HubOptions) {
 		mkdirSync(o.dataDir, { recursive: true });
 		// 壁打ちは Clawd くん（buddy.ts）に移ったので、前の版のタブの記録は捨てる
-		for (const rec of this.load()) if (rec.kind === "main" || rec.kind === "task" || rec.kind === "system") this.terms.set(rec.id, this.make(rec));
+		for (const rec of this.load()) if (rec.kind === "main" || rec.kind === "task" || rec.kind === "system" || rec.kind === "self") this.terms.set(rec.id, this.make(rec));
 		if (!this.terms.has("main")) this.terms.set("main", this.make(newRecord("main", "main", "mgr", null, o.today())));
 		// システム改修 sub mgr のタブは常に置く（claude はタブを開くか、to: system のメッセージが届いたときに立ち上がる）。
 		// ここでは画面への通知（changed）をしない（index.ts の rpc がまだない）
 		if (!this.terms.has(SYSTEM_ID)) this.terms.set(SYSTEM_ID, this.make(newRecord(SYSTEM_ID, "system", "システム改修", null, "")));
+		// 自己改善 sub mgr（self impl mgr）も固定タブ。eod の自動実行の結果を受け取り、提案を出す
+		if (!this.terms.has(SELF_ID)) this.terms.set(SELF_ID, this.make(newRecord(SELF_ID, "self", "自己改善", null, "")));
 		const main = this.main;
 		main.rec.title = "mgr";
 		if (!main.rec.day) main.rec.day = o.today();
@@ -113,16 +116,26 @@ export class Hub {
 		return t;
 	}
 
-	/** システム改修 sub mgr（なければ作る。タイトル「システム改修」、タスクノートなし、日替わりにしない） */
-	ensureSystem(): Term {
-		let t = this.terms.get(SYSTEM_ID);
+	/** 固定 sub mgr（system / self）。なければ作る。タスクノートなし、日替わりにしない */
+	private ensureFixed(id: string, kind: TermKind, title: string): Term {
+		let t = this.terms.get(id);
 		if (!t) {
-			t = this.make(newRecord(SYSTEM_ID, "system", "システム改修", null, ""));
-			this.terms.set(SYSTEM_ID, t);
+			t = this.make(newRecord(id, kind, title, null, ""));
+			this.terms.set(id, t);
 			this.persist();
 			this.emitChanged(true);
 		}
 		return t;
+	}
+
+	/** システム改修 sub mgr（タイトル「システム改修」） */
+	ensureSystem(): Term {
+		return this.ensureFixed(SYSTEM_ID, "system", "システム改修");
+	}
+
+	/** 自己改善 sub mgr = self impl mgr（タイトル「自己改善」） */
+	ensureSelf(): Term {
+		return this.ensureFixed(SELF_ID, "self", "自己改善");
 	}
 
 	close(id: string) {
@@ -220,12 +233,14 @@ export class Hub {
 	isOpen(d: Dest): boolean {
 		if (d.kind === "main") return this.main.running;
 		if (d.kind === "system") return this.terms.get(SYSTEM_ID)?.running ?? false;
+		if (d.kind === "self") return this.terms.get(SELF_ID)?.running ?? false;
 		return this.terms.get(`task:${d.taskPath}`)?.running ?? false;
 	}
 
 	private termFor(d: Dest): Term {
 		if (d.kind === "main") return this.main;
 		if (d.kind === "system") return this.ensureSystem();
+		if (d.kind === "self") return this.ensureSelf();
 		return this.openTask(d.taskPath);
 	}
 
@@ -299,7 +314,7 @@ export class Hub {
 	}
 }
 
-const ORDER: Record<TermKind, number> = { main: 0, system: 1, task: 2 };
+const ORDER: Record<TermKind, number> = { main: 0, system: 1, self: 2, task: 3 };
 
 function newRecord(id: string, kind: TermKind, title: string, taskPath: string | null, day: string): TermRecord {
 	return { id, kind, title, taskPath, sessionId: crypto.randomUUID(), day, lastActive: Date.now() };
@@ -316,6 +331,12 @@ function systemPrompt(rec: TermRecord): string {
 			`${common}\nあなたはシステム改修 sub mgr。担当は manager システム自体の改修（Manager/ の skills・agents・scripts・jobs・settings・docs と ~/Documents/work/manager-app）。人の業務タスク（tasks/）は扱わない。` +
 			"実作業は worker `system-engineer`（.claude/agents/system-engineer.md）に出し、自分は依頼の分解・確認・人への報告に専念する。" +
 			'完了したら Write ツールで state/ui/handoff-<YYYYMMDD-HHMMSS>.json に { "to": "main", "from": "system", "brief": "…" } を書き、結果を 5 行以内で mgr に返す（skill の「セッション間メッセージ」の形式）。'
+		);
+	if (rec.kind === "self")
+		return (
+			`${common}\nあなたは自己改善 sub mgr（self impl mgr）。担当は eod 処理（日次の振り返り）・retro・自己改善の提案。人の業務タスクの実作業と、manager システムの改修（to: system の担当）は扱わない。` +
+			"自動 eod（ジョブ eod、毎日 3:00 に前日分を非対話で実行）の結果を受け取り、人の判断が要るもの（明日のトップ3・retro の承認）は messages/ の提案として人に出す。承認前の retro・CLAUDE.md・skill は書き換えない。" +
+			'完了したら Write ツールで state/ui/handoff-<YYYYMMDD-HHMMSS>.json に { "to": "main", "from": "self", "brief": "…" } を書き、結果を 5 行以内で mgr に返す（skill の「セッション間メッセージ」の形式）。'
 		);
 	return `${common}\nあなたは sub mgr。担当タスク: ${rec.taskPath}。skill の「sub mgr のとき」の節に従い、このタスクだけを扱う。`;
 }

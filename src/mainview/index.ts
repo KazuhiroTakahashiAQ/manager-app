@@ -201,7 +201,7 @@ function renderBoard() {
 	if (s.inboxCount) facts.push(`inbox ${s.inboxCount}`);
 	factsEl.textContent = facts.join("　");
 
-	boardEl.innerHTML = [decideHtml(s, open), prepHtml(s, notReady), ganttHtml(s), ideasHtml(s), agentsHtml(s), lowerHtml(s)].join("");
+	boardEl.innerHTML = [decideHtml(s, open), selfHtml(s), prepHtml(s, notReady), ganttHtml(s), ideasHtml(s), agentsHtml(s), lowerHtml(s)].join("");
 	mountGraph();
 	drawProgressLine();
 }
@@ -217,6 +217,28 @@ function decideHtml(s: VaultState, open: Item[]): string {
 	];
 	if (!rows.length) return "";
 	return `<section class="decide ${foldCls("decide")}" data-key="decide"><h2 data-fold="decide">今日決めること<span class="n">${rows.length}</span></h2><div class="fold-body">${rows.join("")}</div></section>`;
+}
+
+/** self impl mgr のカード：自動 eod の最終実行・結果・取りこぼしと、人の判断待ちの提案。ここから固定タブ「自己改善」に入る */
+function selfHtml(s: VaultState): string {
+	const job = s.jobs.find((j) => j.name === "eod");
+	const f = job?.fm ?? {};
+	const last = f["last_run"] ?? "";
+	const st = f["last_status"] ?? "";
+	const note = f["last_note"] ?? "";
+	const msgs = s.messages.filter((m) => isOpenMsg(m) && fm(m, "from") === "self").length;
+	const result = !job ? "ジョブ未設定" : !last ? "まだ実行なし" : st === "ok" ? "実行済み" : st === "skipped" ? `スキップ${note ? `（${note}）` : ""}` : st === "error" ? "エラー" : st;
+	const bad = st === "error" || !job;
+	const facts = [
+		`最終実行 ${last ? last.replace("T", " ") : "—"}`,
+		`結果 ${result}`,
+		`判断待ちの提案 ${msgs}`,
+		`retro 提案 ${s.retroPending}`,
+	];
+	return `<section class="selfmgr" data-key="selfmgr">
+		<h2>自己改善<span class="note">self impl mgr · 自動 eod（毎日 3:00 に前日分）</span></h2>
+		<div class="selfrow${bad ? " bad" : ""}"><span class="sf">${facts.map(esc).join("</span><span class=\"sf\">")}</span><button class="selfgo" type="button" data-term="self">自己改善タブを開く</button></div>
+	</section>`;
 }
 
 /** 着手の準備：完了条件・手順・期限がそろっていないタスクを、準備の期限順に */
@@ -478,6 +500,7 @@ function agentsHtml(s: VaultState): string {
 
 	const main = terms.filter((t) => t.kind === "main");
 	const sys = terms.filter((t) => t.kind === "system");
+	const slf = terms.filter((t) => t.kind === "self");
 	const subs = terms.filter((t) => t.kind === "task");
 
 	const talk = [
@@ -488,6 +511,14 @@ function agentsHtml(s: VaultState): string {
 			model: sys[0]?.model ?? "sonnet",
 			state: termState(sys),
 			busy: sys.some((t) => t.active),
+			path: SKILL_PATH,
+		}),
+		row({
+			name: "自己改善",
+			role: "sub mgr（self impl mgr）。自動 eod の結果の受け取り・retro・改善提案。業務タスクとシステム改修は扱わない",
+			model: slf[0]?.model ?? "sonnet",
+			state: termState(slf),
+			busy: slf.some((t) => t.active),
 			path: SKILL_PATH,
 		}),
 		row({
@@ -1103,7 +1134,7 @@ function linksHtml(list: LinkInfo[] | undefined): string {
 		.join("")}</ul>`;
 }
 
-const ROLE: Record<TermInfo["kind"], string> = { main: "mgr", system: "システム", task: "sub mgr" };
+const ROLE: Record<TermInfo["kind"], string> = { main: "mgr", system: "システム", self: "自己改善", task: "sub mgr" };
 const ACT_LABEL: Record<ActivitySpan["label"], string> = { task: "タスク", related: "関連の仕事", off: "関係ないこと", idle: "離席" };
 
 // 各セッションの行は、会話が続いている間は開き、途切れたら畳む（判定と開閉の規則は runs-fold.ts）。
@@ -1958,7 +1989,7 @@ function renderTabs() {
 		.map((t) => {
 			const mk = t.active ? '<span class="mk busy"></span>' : t.unread ? '<span class="mk unread"></span>' : !t.running ? '<span class="mk off"></span>' : "";
 			const close = t.kind === "task" ? `<span class="x" data-close="${esc(t.id)}" title="sub mgr を閉じる（タスクノートは残る）">×</span>` : "";
-			const tip = t.taskPath ?? (t.kind === "system" ? "システム改修 sub mgr（manager システム自体の改修。日をまたいでも同じ会話）" : "mgr（人の窓口とルーティング）");
+			const tip = t.taskPath ?? (t.kind === "system" ? "システム改修 sub mgr（manager システム自体の改修。日をまたいでも同じ会話）" : t.kind === "self" ? "自己改善 sub mgr（self impl mgr。eod 処理・retro・改善提案。日をまたいでも同じ会話）" : "mgr（人の窓口とルーティング）");
 			const badge = t.id === currentId ? "" : workerBadge(t.id, now);
 			return `<button class="tab" type="button" data-term="${esc(t.id)}" aria-current="${t.id === currentId}" title="${esc(tip)}">${mk}<span class="tx"><span class="role">${ROLE[t.kind]}</span>${t.kind === "task" ? `<span class="label">${esc(t.title)}</span>` : ""}</span>${badge}${close}</button>`;
 		})
@@ -2002,7 +2033,7 @@ const TASK_CMDS: [string, string][] = [
 
 function renderFoot() {
 	const t = terms.find((x) => x.id === currentId);
-	const cmds = t?.kind === "task" ? TASK_CMDS : t?.kind === "system" ? [] : MAIN_CMDS;
+	const cmds = t?.kind === "task" ? TASK_CMDS : t?.kind === "system" || t?.kind === "self" ? [] : MAIN_CMDS;
 	footEl.innerHTML =
 		cmds.map(([cmd, label]) => `<button type="button" data-cmd="${esc(cmd)}">${esc(label)}</button>`).join("");
 	footEl.hidden = !cmds.length;

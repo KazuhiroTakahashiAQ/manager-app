@@ -137,6 +137,7 @@ export class Vault {
 			lookahead: this.lookahead(),
 			activity: this.lastActivity(today),
 			inboxCount,
+			retroPending: this.list("memory/retro").filter((r) => r.fm["status"] === "提案").length,
 			scannedAt: Date.now(),
 		};
 	}

@@ -31,6 +31,12 @@ describe("interpretHandoff", () => {
 		expect(r.handoff.warnings).toEqual([]);
 	});
 
+	test("to: self（自己改善 sub mgr = self impl mgr）", () => {
+		const r = interpretHandoff({ to: "self", from: "mgr", brief: "eod の結果を見て" }, exists);
+		expect(r.ok && r.handoff.dest).toEqual({ kind: "self" });
+		expect(parseDest("self")).toEqual({ kind: "self" });
+	});
+
 	test("to: system、from なしは「不明」", () => {
 		const r = interpretHandoff({ to: "system", brief: "設定を直して" }, exists);
 		expect(r.ok && r.handoff.dest.kind).toBe("system");
@@ -109,6 +115,6 @@ describe("compact", () => {
 	});
 
 	test("指示文は 1 行", () => {
-		for (const k of ["main", "system", "task"] as const) expect(compactInstruction(k, "tasks/見積.md")).not.toContain("\n");
+		for (const k of ["main", "system", "self", "task"] as const) expect(compactInstruction(k, "tasks/見積.md")).not.toContain("\n");
 	});
 });

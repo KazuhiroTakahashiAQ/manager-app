@@ -9,10 +9,10 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 - **ファイル・URL** — 各セッションとワーカーの記録から、出てきたファイル（Read / Write / Edit と本文中のパス）と URL を拾い、実行状況のその mgr / sub mgr / worker の下に並べる（読んだ / 書いた / 直した / 開いた / 言及、ファイル名とタイトル）。md はアプリ内のタブで、ほかのファイルは既定のアプリで、URL はブラウザで開く。
 - **ノートのタブ** — ダッシュボードの右上のタブで、ダッシュボードと開いたノートを切り替える（Esc でダッシュボードへ）。vault 外の md（ホーム配下）も開ける。
 - **README タブ** — ダッシュボードの隣の固定タブ「README」に、このアプリの README.md を Markdown（見出し・表・コードブロック・リスト・リンク）で出す。読み取り専用。タブを開くたび・画面の再読み込み（ホットリロード含む）・ウィンドウが再び見えたときに bun 側 RPC `readReadme` で読み直すので、常に最新。場所は `MANAGER_APP_ROOT` → `build/` の手前 → 起動元 → `~/Documents/work/manager-app` の順で探す（`src/bun/readme.ts`、`src/mainview/readme-tab.ts`。テストあり）。描画はノートのタブと同じ（marked + DOMPurify）。
-- **今タブ** — ダッシュボードと README の間の固定タブ「今」。一覧ではなく集中画面で、Manager の `state/ui/now.json`（`{task, reason, set_by, set_at}`。mgr が書く。`task` は `tasks/<名>.md` でも素の名前でも可。アプリは読むだけで書かない）のタスクのタイトル・next_action・期限・`## 完了条件`・`## 手順`（Markdown。marked + DOMPurify）と、関連（`research/<名>.md`・waiting_for）・reason を出す。now.json がない・読めない・タスクがないときは `status: doing` で期限が最も近いものを「仮」と付けて出す。タブの下に「聞かれていること」として `messages/` の未回答（`status` 未読 / 対応中 かつ frontmatter `from` あり）を並べ、`options` があれば選択肢ボタン、なければ入力欄（⌘/Ctrl+Enter で送信）。返信は messages の `reply` に書き、`from`（main / system / tasks/<名>.md）のセッションが開いていれば `state/ui/handoff-*.json` で届けて `status: 完了`、閉じている・`worker:<名>` なら `status: 対応中` のまま `reply` に残す。未回答の数はタブのバッジだけ（nudge は足さない）。タブを開くたび・`messages/` `tasks/` `research/` `state/ui/now.json` の変更・ウィンドウが再び見えたときに bun 側 RPC `now` で読み直し、ホットリロード後も「今」タブを戻す（`src/bun/now.ts`、`src/shared/now.ts`、`src/mainview/now-tab.ts`。テストあり）。
+- **今タブ** — ダッシュボードと README の間の固定タブ「今」。一覧ではなく集中画面で、Manager の `state/ui/now.json`（`{task, reason, set_by, set_at}`。mgr が書く。`task` は `tasks/<名>.md` でも素の名前でも可。アプリは読むだけで書かない）のタスクのタイトル・next_action・期限・`## 完了条件`・`## 手順`（Markdown。marked + DOMPurify）と、関連（`research/<名>.md`・waiting_for）・reason を出す。now.json がない・読めない・タスクがないときは `status: doing` で期限が最も近いものを「仮」と付けて出す。タブの下に「聞かれていること」として `messages/` の未回答（`status` 未読 / 対応中 かつ frontmatter `from` あり）を並べ、`options` があれば選択肢ボタン、なければ入力欄（⌘/Ctrl+Enter で送信）。返信は messages の `reply` に書き、`from`（main / system / self / tasks/<名>.md）のセッションが開いていれば `state/ui/handoff-*.json` で届けて `status: 完了`、閉じている・`worker:<名>` なら `status: 対応中` のまま `reply` に残す。未回答の数はタブのバッジだけ（nudge は足さない）。タブを開くたび・`messages/` `tasks/` `research/` `state/ui/now.json` の変更・ウィンドウが再び見えたときに bun 側 RPC `now` で読み直し、ホットリロード後も「今」タブを戻す（`src/bun/now.ts`、`src/shared/now.ts`、`src/mainview/now-tab.ts`。テストあり）。
 - **実行状況** — 各タブのセッションが呼んだサブエージェント（ワーカー）を `~/.claude/projects/<cwd>/<session>/subagents/` から 2 秒ごとに読み、種類・依頼内容・状態・直近のツールを出す。状態は 作業中 / 完了（`agent-<id>.meta.json` の `finished: true`）/ 失敗・止めた（親の `<session>.jsonl` の queue-operation にある task-notification の `<status>failed</status>` / `<status>killed</status>`、meta の `stoppedByUser`）/ 止まっている（どれでもなく 5 分更新なし）。親の jsonl は前回の続きだけ読む。ノートは盤面の上に重ねて開く（Esc で戻る）。
 - **実行状況の自動開閉** — セッション（mgr / システム / sub mgr）の行は、会話が続いている間は中身（ファイル・URL と worker）を開き、途切れたら畳んで数だけ出す。会話中 = worker が作業中、または claude が動いていて出力中か最後の出力から 10 分以内（`RUN_ACTIVE_MS`、`src/mainview/runs-fold.ts`。テストあり）。左の ▾ / ▸ で手でも開閉でき、手で変えたものは次に会話中かどうかが変わるまで自動で戻さない（自動は始まった・途切れた瞬間だけ効く）。worker の帯のチップから来たときは開く。開閉と最後の出力の時刻は localStorage の `runsFold` / `runsBusyAt` に保ち、再描画・再読み込みのあとも保つ（保存できなくても動く）。最後の出力の時刻は画面側で TermInfo の `active` の変わり目から取るので、画面を開く前の出力は数えない。
-- **右（または下）: ターミナル** — 普通の `claude` を PTY で動かし、xterm.js で表示する。スラッシュコマンド・skill・許可の確認はいつもどおり使える。タブで mgr・システム・sub mgr を切り替える。
+- **右（または下）: ターミナル** — 普通の `claude` を PTY で動かし、xterm.js で表示する。スラッシュコマンド・skill・許可の確認はいつもどおり使える。タブで mgr・システム・自己改善・sub mgr を切り替える。ターミナルの上には今のレイヤー（mgr / sub mgr のタイトルなど）のラベルを常に出し、worker がいるときはその下にチップを横に並べる。
 - **配置** — 既定はターミナルが右、ダッシュボード:ターミナル = 7:3。境界はドラッグで変えられ、ダブルクリックで 7:3 に戻る（どちらも最小幅を割らず、ターミナルは幅の変化に合わせて合わせ直す。計算は `src/mainview/layout.ts`、テストあり）。ターミナル上部の丸いボタン（↓ で下に置く / → で右に置く）で位置を切り替える（どちらも次回も覚えている）。
 - **文字の大きさ** — ⌘- で小さく、⌘⇧- で大きく（⌘= でも大きく）、⌘0 で既定の 11px に戻す。フォントは JetBrainsMono Nerd Font Mono。
 - **選んだ文を入力欄へ** — ノートやブリーフの文を選ぶと「付箋にして話す」が出る。`[参照] ファイル › 見出し` と引用を、いま開いているターミナルの入力欄に貼る（送信はしない）。「話す」ボタンも同じ。
@@ -40,7 +40,7 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
   | 着手の準備 | 未定義・定義中・着手可の形の印（紫の枠）+ 下線 |
   | WBS | 行頭の内側の線: 親 = 太く濃い、子 = 中、孫以下 = 細く薄い（レイアウトは動かさない） |
   | タスクの印 | アイデア = 桃の枠、下調べ = 青の枠、重い = 破線（`tb-idea` / `tb-research`） |
-  | 実行状況の役割 | mgr = 実線、システム = 二重線、sub mgr = 破線、worker = 点線（`rk-main` / `rk-system` / `rk-task`） |
+  | 実行状況の役割 | mgr = 実線、システム・自己改善 = 二重線、sub mgr = 破線、worker = 点線（`rk-main` / `rk-system` / `rk-self` / `rk-task`） |
 
   クラス名の決定は `src/mainview/seg.ts`（テストは `seg.test.ts`）。
 - md ファイルは読むだけ。書き込みは manager（Claude Code）が行い、変更は自動で表示に反映する（`ideas/`・`research/`・`state/plan/*.json` も）。
@@ -60,21 +60,22 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 | タブ | 役割 | 寿命 |
 |---|---|---|
 | mgr | 人の窓口とルーティング。作業は sub mgr・worker に振る | 日付が変わると新しい会話にする（タブにボタンが出る） |
+| 自己改善 | 自己改善 sub mgr = self impl mgr（固定 id `self`、タイトル「自己改善」）。自動 eod（ジョブ `eod`、毎日 3:00 に前日分を非対話で実行）の結果の受け取り・retro・改善提案。業務タスクとシステム改修は扱わない。人の判断が要るものは `messages/`（`from: self`）に起票し、終わったら mgr に `to: main` で返す | ずっと同じ会話（日替わりにしない。× はない） |
 | システム | システム改修 sub mgr（固定 id `system`、タイトル「システム改修」）。manager システム自体の改修。実作業は worker `system-engineer` に出し、終わったら mgr に `to: main` で返す | ずっと同じ会話（日替わりにしない。× はない） |
 | sub mgr | タスク 1 件の段取り。mgr が引き継ぎで立てる | × で閉じるまで（タスクノートは残る） |
 
 - 1 タブ = 1 つの claude セッション。2 回目以降は `--resume` で続きから。
 - **worker の帯** — タブの下に、いまのタブの worker を 1 行のチップ（状態の印・種類・依頼内容）で並べる。いなければ帯は出ない。作業中は青の点滅、完了は 60 秒で消える、失敗（朱）・止めた（灰）はそのタブを見るまで（最長 30 分）、止まっている（黄）は 30 分で消える。ホバーで経過時間と直近のツール。押すとそのタブに切り替え、盤面の実行状況でその worker を目立たせる。ほかのタブには「worker N」のバッジ（いちばん悪い状態の色）を出す。
 - 起動時に `--model sonnet` と `--append-system-prompt`（skill `manager-app` を読み込ませる。システムは担当と報告のしかたも書く）を付ける。
-- 「システム」のタブは常にある。claude はタブを開いたとき、または `to: system` のメッセージが届いたときに立ち上がる。
-- 一覧は `Manager/state/ui/sessions.json`（`kind`: main / system / task）。mgr は `node scripts/submgr.ts list` / `read <タスク名|system>` で中身を読む。
+- 「システム」「自己改善」のタブは常にある。claude はタブを開いたとき、または `to: system` / `to: self` のメッセージが届いたときに立ち上がる。ダッシュボードの「自己改善」カード（自動 eod の最終実行・結果・スキップの有無・判断待ちの提案数と retro 提案数。`jobs/eod.md` の `last_run` / `last_status` / `last_note` と `messages/` の `from: self`、status=提案 の retro から）のボタンでこのタブに入る（会話の埋め込みは作り直しになるので固定タブ + カードにした）。
+- 一覧は `Manager/state/ui/sessions.json`（`kind`: main / system / self / task）。mgr は `node scripts/submgr.ts list` / `read <タスク名|system>` で中身を読む。
 
 ## セッション間メッセージ（handoff）
 
 mgr・sub mgr・システムは、Write ツールで `Manager/state/ui/handoff-<YYYYMMDD-HHMMSS>.json` を書いて互いに送る（`src/bun/handoff.ts` が解釈、`src/bun/hub.ts` が届ける）。
 
 ```json
-{ "to": "main | system | tasks/<名>.md", "from": "mgr | system | <sub mgr のタイトル>", "brief": "…", "reply_to": "<任意。to と同じ形式>" }
+{ "to": "main | system | self | tasks/<名>.md", "from": "mgr | system | self | <sub mgr のタイトル>", "brief": "…", "reply_to": "<任意。to と同じ形式>" }
 ```
 
 - 従来の `{ "task": "tasks/…md", "brief": "…" }` もそのまま使える（to = task、from = mgr）。
@@ -145,7 +146,7 @@ Finder のファイル（複数可）や、ほかのアプリからのパス・`
 1. **claude 自身の自動 compact を早める** — claude の起動時の env に `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`（`autocompact_pct`、既定 60）と `CLAUDE_CODE_AUTO_COMPACT_WINDOW`（`autocompact_window`、既定 200000）を足す。公式 docs（code.claude.com/docs/en/env-vars・model-config）では、前者は「auto-compact window に対して何 % で自動 compact するか」（既定の割合より上げられない）、後者はその窓のトークン数（100K〜1M）。sonnet は 1M の窓で既定では約 967K で畳むので、窓も小さくする（200K × 60% ≒ 12 万トークン）。0 なら渡さない。起動時にだけ効く。
 2. **定期の `/compact`** — 1 分ごとに、claude が動いていて「送ってよい」状態のタブのうち、前回の compact（か起動）から `compact_min`（45 分）以上たち、文脈が `compact_tokens`（90000）を超えるものに、残す要点を指示した `/compact …` を送る（1 周 1 タブ、1 タブ 1 日 `compact_max_per_day`（6）回まで、`compact: false` で止める）。
    - 文脈の大きさは `~/.claude/projects/<cwd>/<session>.jsonl` の末尾 1MB で、最後の assistant 行の usage（`input_tokens + cache_read_input_tokens + cache_creation_input_tokens`）。それより後に compact の境目（`compact_boundary`）があれば、その `postTokens`。
-   - 指示文: mgr は「未完了のタスクと next_action、人に確認中の事項、sub mgr に渡した依頼と返事待ちの件、決まったこと」、sub mgr は「担当タスクの完了条件・手順・決定・次の一手」、システムは「担当の改修の依頼・完了条件・手順・決定・worker に出した作業と結果・次の一手、mgr への報告待ち」を残し、生ログ・ツール出力は捨てる。
+   - 指示文: mgr は「未完了のタスクと next_action、人に確認中の事項、sub mgr に渡した依頼と返事待ちの件、決まったこと」、sub mgr は「担当タスクの完了条件・手順・決定・次の一手」、システムは「担当の改修の依頼・完了条件・手順・決定・worker に出した作業と結果・次の一手、mgr への報告待ち」、自己改善は「自動 eod の結果と未処理の提案、承認待ちの retro、人に確認中の事項、直近の改善の決定と次の一手、mgr への報告待ち」を残し、生ログ・ツール出力は捨てる。
    - 回数と最後に送った時刻は userData の `compact.json`。
 
 ## 活動の記録（脱線・停滞の材料）
@@ -208,7 +209,7 @@ pnpm build            # 配布用ビルド
 | パス | 内容 |
 |---|---|
 | `src/bun/index.ts` | ウィンドウ・メニュー・RPC の配線 |
-| `src/bun/hub.ts` | タブの束ね役（日替わり・システムのタブ・セッション間メッセージの配達・保存） |
+| `src/bun/hub.ts` | タブの束ね役（日替わり・システム／自己改善のタブ・セッション間メッセージの配達・保存） |
 | `src/bun/handoff.ts` / `handoff.test.ts` | セッション間メッセージの解釈（純関数）とテスト |
 | `src/bun/compact.ts` | 自動 compact の env と、定期の `/compact` |
 | `src/bun/term.ts` | claude 1 セッションを PTY で動かす（アプリから送ってよいかの判定） |
