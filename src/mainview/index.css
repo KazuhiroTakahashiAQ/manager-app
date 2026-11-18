@@ -721,11 +721,25 @@ button.side:hover {
 	background: var(--cover);
 	padding: 0 12px;
 }
+/* 行は明示する。hidden の wstrip / dock-foot は grid アイテムにならず、自動配置だと
+   .stack が auto の行（高さ ≒ 0）に入って xterm の行数が過小になり、表示が上に寄って文字が被る */
 .dock-head,
 .wstrip,
 .stack,
 .dock-foot {
 	grid-column: 1;
+}
+.dock-head {
+	grid-row: 1;
+}
+.wstrip {
+	grid-row: 2;
+}
+.stack {
+	grid-row: 3;
+}
+.dock-foot {
+	grid-row: 4;
 }
 .vtabs {
 	grid-column: 2;

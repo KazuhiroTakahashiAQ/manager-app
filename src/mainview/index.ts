@@ -1693,7 +1693,8 @@ async function showTerm(id: string) {
 	for (const [tid, tv] of tvs) tv.el.hidden = tid !== id;
 	const tv = ensureTV(id);
 	tv.el.hidden = false;
-	tv.fit.fit();
+	fitCurrent();
+	requestAnimationFrame(fitCurrent); // タブ切替でレイアウトが動いた後にもう一度合わせる
 	if (!tv.attached) {
 		const { buffer } = await api.attach({ id, cols: tv.term.cols, rows: tv.term.rows });
 		tv.term.reset();
@@ -1729,7 +1730,8 @@ function typeLine(text: string) {
 /** 今のターミナルを枠に合わせ直す（隠れているタブは showTerm で表示するときに合わせる） */
 function fitCurrent() {
 	const tv = tvs.get(currentId);
-	if (tv && !tv.el.hidden) tv.fit.fit();
+	// 寸法 0（畳んでいる・レイアウト確定前）で fit すると行数が 1〜2 になって表示が崩れるので何もしない
+	if (tv && !tv.el.hidden && stackEl.clientWidth > 0 && stackEl.clientHeight > 20) tv.fit.fit();
 }
 // 境界のドラッグ・配置の切り替え・ウィンドウの大きさの変化はすべてここで拾う
 new ResizeObserver(() => fitCurrent()).observe(stackEl);
