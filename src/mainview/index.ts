@@ -891,7 +891,7 @@ setInterval(() => {
 	if (min < startH * 60 || min > endH * 60 || hm(d) === "00:00") return renderBoard();
 	const line = tl.querySelector<HTMLElement>(".now");
 	if (!line) return renderBoard();
-	// 文を選んでいる最中は描き直さず、線だけ動かす（付箋の操作を邪魔しない）
+	// 文を選んでいる最中は描き直さず、線だけ動かす（選択の操作を邪魔しない）
 	const selecting = !window.getSelection()?.isCollapsed;
 	if (!selecting) return renderBoard(); // 終わった予定・進行中の予定の見た目も合わせる
 	line.style.top = `${((min - startH * 60) / 60) * HOUR_PX}px`;
@@ -1556,7 +1556,7 @@ document.addEventListener("click", (e) => {
 	else if (a.href && !a.href.startsWith("views://")) api.openExternal({ url: a.href });
 });
 
-// ───────── 付箋：ターミナルの入力欄に貼る ─────────
+// ───────── 選んだ文：ターミナルの入力欄に貼る ─────────
 
 /** 参照をターミナルに貼る（送信はしない。続きを書いて Enter） */
 function pasteQuote(path: string, heading: string, text: string) {
@@ -1998,8 +1998,8 @@ function renderFoot() {
 	const t = terms.find((x) => x.id === currentId);
 	const cmds = t?.kind === "task" ? TASK_CMDS : t?.kind === "system" ? [] : MAIN_CMDS;
 	footEl.innerHTML =
-		cmds.map(([cmd, label]) => `<button type="button" data-cmd="${esc(cmd)}">${esc(label)}</button>`).join("") +
-		`<span class="spacer"></span><span class="hint">ノートの文を選ぶと付箋にしてここに貼れる</span>`;
+		cmds.map(([cmd, label]) => `<button type="button" data-cmd="${esc(cmd)}">${esc(label)}</button>`).join("");
+	footEl.hidden = !cmds.length;
 }
 footEl.addEventListener("click", (e) => {
 	const b = (e.target as HTMLElement).closest<HTMLElement>("[data-cmd]");
