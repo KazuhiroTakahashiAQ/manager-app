@@ -181,14 +181,6 @@ export class Term {
 		this.env.changed(this);
 	}
 
-	/** セッションを捨てて、次は新しい会話で始める */
-	renew() {
-		this.kill();
-		this.rec.sessionId = crypto.randomUUID();
-		this.buffer = "";
-		this.env.data(this, "\x1b[2J\x1b[3J\x1b[H");
-	}
-
 	private onBytes(bytes: Uint8Array) {
 		this.pending += this.decoder.decode(bytes, { stream: true });
 		this.lastOutput = Date.now();

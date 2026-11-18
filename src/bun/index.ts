@@ -80,10 +80,6 @@ const rpc = BrowserView.defineRPC<ManagerRPC>({
 				hub.close(id);
 				return { ok: true };
 			},
-			renewMain: () => {
-				hub.renewMain();
-				return { ok: true };
-			},
 			openExternal: ({ url }) => {
 				if (!/^(https?|slack|obsidian|mailto|x-apple\.systempreferences):/i.test(url)) return { ok: false };
 				return { ok: Utils.openExternal(url) };

@@ -187,8 +187,6 @@ export type TermInfo = {
 	active: boolean;
 	/** 見ていない間に出力があった */
 	unread: boolean;
-	/** main のセッションが前日のもの */
-	stale: boolean;
 };
 
 /** ドロップされたファイルを受け取った結果（path は置いた / 見つけた絶対パス） */
@@ -217,8 +215,6 @@ export type ManagerRPC = {
 			attach: { params: { id: string; cols: number; rows: number }; response: { buffer: string } };
 			openTask: { params: { taskPath: string }; response: TermInfo };
 			closeTerm: { params: { id: string }; response: { ok: boolean } };
-			/** main を新しいセッションで立ち上げ直す */
-			renewMain: { params: {}; response: { ok: boolean } };
 			openExternal: { params: { url: string }; response: { ok: boolean } };
 			openInObsidian: { params: { path: string }; response: { ok: boolean } };
 			/** Clawd くんに話す（返事は buddyDelta / buddyReply で届く） */

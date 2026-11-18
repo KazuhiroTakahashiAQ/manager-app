@@ -772,16 +772,6 @@ button.side:hover {
 .tab .x:hover {
 	opacity: 1;
 }
-.renew {
-	flex: none;
-	margin: 0 0 6px 8px;
-	background: none;
-	border: 1px solid #f2a897;
-	color: #f2a897;
-	border-radius: 6px;
-	padding: 2px 10px;
-	font-size: var(--step--1);
-}
 .mk {
 	display: inline-block;
 	width: 6px;

@@ -70,7 +70,6 @@ export class Hub {
 
 	list(): TermInfo[] {
 		const now = Date.now();
-		const today = this.o.today();
 		return this.all().map((t) => ({
 			id: t.id,
 			kind: t.rec.kind,
@@ -80,7 +79,6 @@ export class Hub {
 			running: t.running,
 			active: t.running && now - t.lastOutput < ACTIVE_MS,
 			unread: t.unread,
-			stale: t.rec.kind === "main" && t.rec.day !== today,
 		}));
 	}
 
@@ -132,15 +130,6 @@ export class Hub {
 		if (!t || t.rec.kind !== "task") return;
 		t.kill();
 		this.terms.delete(id);
-		this.persist();
-		this.emitChanged(true);
-	}
-
-	renewMain() {
-		const m = this.main;
-		m.renew();
-		m.rec.day = this.o.today();
-		m.start();
 		this.persist();
 		this.emitChanged(true);
 	}

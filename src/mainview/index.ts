@@ -1956,7 +1956,6 @@ function renderTabs() {
 			return `<button class="tab" type="button" data-term="${esc(t.id)}" aria-current="${t.id === currentId}" title="${esc(tip)}">${mk}<span class="role">${ROLE[t.kind]}</span>${t.kind === "task" ? `<span class="label">${esc(t.title)}</span>` : ""}${badge}${close}</button>`;
 		})
 		.join("");
-	if (terms.some((t) => t.stale)) tabsEl.insertAdjacentHTML("beforeend", `<button class="renew" type="button" data-renew>日付が変わった：manager を新しい会話にする</button>`);
 	renderStrip(now);
 	stripKey = workersKey(now);
 }
@@ -1967,12 +1966,6 @@ tabsEl.addEventListener("click", async (e) => {
 		e.stopPropagation();
 		await api.closeTerm({ id: close.dataset.close! });
 		return;
-	}
-	if (el.closest("[data-renew]")) {
-		const tv = tvs.get("main");
-		if (tv) tv.attached = false;
-		await api.renewMain({});
-		return void showTerm("main");
 	}
 	const b = el.closest<HTMLElement>("[data-term]");
 	if (b) void showTerm(b.dataset.term!);
