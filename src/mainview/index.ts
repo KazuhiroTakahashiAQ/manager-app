@@ -220,25 +220,27 @@ function decideHtml(s: VaultState, open: Item[]): string {
 	return `<section class="decide ${foldCls("decide")}" data-key="decide"><h2 data-fold="decide">今日決めること<span class="n">${rows.length}</span></h2><div class="fold-body">${rows.join("")}</div></section>`;
 }
 
-/** self impl mgr のカード：自動 eod の最終実行・結果・取りこぼしと、人の判断待ちの提案。ここから固定タブ「自己改善」に入る */
-function selfHtml(s: VaultState): string {
-	const job = s.jobs.find((j) => j.name === "eod");
+/** ジョブの最終実行を「最終実行 / 結果」の 2 項目にまとめる */
+function jobResult(job: Item | undefined): { last: string; result: string; bad: boolean } {
 	const f = job?.fm ?? {};
 	const last = f["last_run"] ?? "";
 	const st = f["last_status"] ?? "";
 	const note = f["last_note"] ?? "";
-	const msgs = s.messages.filter((m) => isOpenMsg(m) && fm(m, "from") === "self").length;
 	const result = !job ? "ジョブ未設定" : !last ? "まだ実行なし" : st === "ok" ? "実行済み" : st === "skipped" ? `スキップ${note ? `（${note}）` : ""}` : st === "error" ? "エラー" : st;
-	const bad = st === "error" || !job;
-	const facts = [
-		`最終実行 ${last ? last.replace("T", " ") : "—"}`,
-		`結果 ${result}`,
-		`判断待ちの提案 ${msgs}`,
-		`retro 提案 ${s.retroPending}`,
-	];
+	return { last: last ? last.replace("T", " ") : "—", result, bad: st === "error" || !job };
+}
+
+/** self impl mgr のカード：自動 eod と週次の自己改善（weekly-improve）の最終実行・結果、人の判断待ちの提案。ここから固定タブ「自己改善」に入る */
+function selfHtml(s: VaultState): string {
+	const eod = jobResult(s.jobs.find((j) => j.name === "eod"));
+	const wk = jobResult(s.jobs.find((j) => j.name === "weekly-improve"));
+	const msgs = s.messages.filter((m) => isOpenMsg(m) && fm(m, "from") === "self").length;
+	const line = (label: string, facts: string[], bad: boolean, btn = "") =>
+		`<div class="selfrow${bad ? " bad" : ""}"><span class="sf">${esc(label)}</span><span class="sf">${facts.map(esc).join("</span><span class=\"sf\">")}</span>${btn}</div>`;
 	return `<section class="selfmgr" data-key="selfmgr">
-		<h2>自己改善<span class="note">self impl mgr · 自動 eod（毎日 3:00 に前日分）</span></h2>
-		<div class="selfrow${bad ? " bad" : ""}"><span class="sf">${facts.map(esc).join("</span><span class=\"sf\">")}</span><button class="selfgo" type="button" data-term="self">自己改善タブを開く</button></div>
+		<h2>自己改善<span class="note">self impl mgr · 自動 eod（毎日 3:00）・週次の自己改善（土日 4:00）</span></h2>
+		${line("eod", [`最終実行 ${eod.last}`, `結果 ${eod.result}`, `判断待ちの提案 ${msgs}`, `retro 提案 ${s.retroPending}`], eod.bad, '<button class="selfgo" type="button" data-term="self">自己改善タブを開く</button>')}
+		${line("週次", [`最終実行 ${wk.last}`, `結果 ${wk.result}`], wk.bad)}
 	</section>`;
 }
 

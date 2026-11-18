@@ -61,7 +61,7 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 | タブ | 役割 | 寿命 |
 |---|---|---|
 | mgr | 人の窓口とルーティング。作業は sub mgr・worker に振る | 日付が変わると新しい会話にする（タブにボタンが出る） |
-| 自己改善 | 自己改善 sub mgr = self impl mgr（固定 id `self`、タイトル「自己改善」）。自動 eod（ジョブ `eod`、毎日 3:00 に前日分を非対話で実行）の結果の受け取り・retro・改善提案。業務タスクとシステム改修は扱わない。人の判断が要るものは `messages/`（`from: self`）に起票し、終わったら mgr に `to: main` で返す | ずっと同じ会話（日替わりにしない。× はない） |
+| 自己改善 | 自己改善 sub mgr = self impl mgr（固定 id `self`、タイトル「自己改善」）。自動 eod（ジョブ `eod`、毎日 3:00 に前日分を非対話で実行）と週次の自己改善（ジョブ `weekly-improve`、土日 4:00。金曜で終わる週のルールを自己判断で棚卸しして減らす方向に直し、ナレッジグラフを整える）の結果の受け取り・retro・改善。業務タスクとシステム改修は扱わない。人の判断が要るものは `messages/`（`from: self`）に起票し、終わったら mgr に `to: main` で返す | ずっと同じ会話（日替わりにしない。× はない） |
 | システム | システム改修 sub mgr（固定 id `system`、タイトル「システム改修」）。manager システム自体の改修。実作業は worker `system-engineer` に出し、終わったら mgr に `to: main` で返す | ずっと同じ会話（日替わりにしない。× はない） |
 | sub mgr | タスク 1 件の段取り。mgr が引き継ぎで立てる | × で閉じるまで（タスクノートは残る） |
 
@@ -69,7 +69,7 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 - **worker の帯** — タブの下に、いまのタブの worker を 1 行のチップ（状態の印・種類・依頼内容）で並べる。いなければ帯は出ない。作業中は青の点滅、完了は 60 秒で消える、失敗（朱）・止めた（灰）はそのタブを見るまで（最長 30 分）、止まっている（黄）は 30 分で消える。ホバーで経過時間と直近のツール。押すとそのタブに切り替え、盤面の実行状況でその worker を目立たせる。ほかのタブには「worker N」のバッジ（いちばん悪い状態の色）を出す。
 - 起動時に `--model sonnet` と `--append-system-prompt`（skill `manager-app` を読み込ませる。システムは担当と報告のしかたも書く）を付ける。
 - タブの並びは mgr → システム → 自己改善 → タスク（開いた順）で固定。出力や入力があっても動かない（以前は最終活動順で、動いたタブが末尾へ移っていた）。
-- 「システム」「自己改善」のタブは常にある。claude はタブを開いたとき、または `to: system` / `to: self` のメッセージが届いたときに立ち上がる。ダッシュボードの「自己改善」カード（自動 eod の最終実行・結果・スキップの有無・判断待ちの提案数と retro 提案数。`jobs/eod.md` の `last_run` / `last_status` / `last_note` と `messages/` の `from: self`、status=提案 の retro から）のボタンでこのタブに入る（会話の埋め込みは作り直しになるので固定タブ + カードにした）。
+- 「システム」「自己改善」のタブは常にある。claude はタブを開いたとき、または `to: system` / `to: self` のメッセージが届いたときに立ち上がる。ダッシュボードの「自己改善」カード（自動 eod の最終実行・結果・スキップの有無・判断待ちの提案数と retro 提案数、その下に週次の自己改善の最終実行・結果の 1 行。`jobs/eod.md` と `jobs/weekly-improve.md` の `last_run` / `last_status` / `last_note` と `messages/` の `from: self`、status=提案 の retro から）のボタンでこのタブに入る（会話の埋め込みは作り直しになるので固定タブ + カードにした）。
 - 一覧は `Manager/state/ui/sessions.json`（`kind`: main / system / self / task）。mgr は `node scripts/submgr.ts list` / `read <タスク名|system>` で中身を読む。
 
 ## セッション間メッセージ（handoff）

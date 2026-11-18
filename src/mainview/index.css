@@ -3006,7 +3006,7 @@ body.dnd-active .clawd {
 	padding: 0 6px;
 }
 
-/* self impl mgr のカード（自動 eod の結果と、自己改善タブへの入口） */
+/* self impl mgr のカード（自動 eod・週次の自己改善の結果と、自己改善タブへの入口） */
 .selfmgr {
 	margin: 0 0 var(--space-3, 16px);
 }
@@ -3020,7 +3020,11 @@ body.dnd-active .clawd {
 .selfrow .sf {
 	color: var(--cover-dim, inherit);
 }
-.selfrow.bad .sf:nth-child(2) {
+.selfrow .sf:first-child {
+	min-width: 3em;
+	font-weight: 600;
+}
+.selfrow.bad .sf:nth-child(3) {
 	color: var(--shu, #c0392b);
 }
 .selfrow .selfgo {
