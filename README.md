@@ -72,6 +72,15 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 - 「システム」「自己改善」のタブは常にある。claude はタブを開いたとき、または `to: system` / `to: self` のメッセージが届いたときに立ち上がる。ダッシュボードの「自己改善」カード（自動 eod の最終実行・結果・スキップの有無・判断待ちの提案数と retro 提案数、その下に週次の自己改善の最終実行・結果の 1 行。`jobs/eod.md` と `jobs/weekly-improve.md` の `last_run` / `last_status` / `last_note` と `messages/` の `from: self`、status=提案 の retro から）のボタンでこのタブに入る（会話の埋め込みは作り直しになるので固定タブ + カードにした）。
 - 一覧は `Manager/state/ui/sessions.json`（`kind`: main / system / self / task）。mgr は `node scripts/submgr.ts list` / `read <タスク名|system>` で中身を読む。
 
+### ドッキングシェル（claude と切り替えるターミナル）
+
+- ターミナル枠の左上に「claude | シェル」の切り替え。ふだんはシェルは隠れていて、「シェル」か **⌘J**（もう一度で戻る）で、いまの claude タブと入れ替わる形で出る。claude は裏で動き続ける。
+- シェルは claude タブごとに 1 つ。初めて出したときに起動する（cwd はそのタブの claude と同じ `Manager/`、`$SHELL -l`、なければ `/bin/zsh`）。タブを切り替えても生きていて、claude タブを閉じる（× / アプリ終了）と一緒に終わる。シェルで `exit` したら「Enter で再開する」と出る。画面のリロードでは、bun が持つ出力（128KB まで）を描き直す。
+- シェルの入出力は claude の入力中・出力中の判定（handoff 配信の待ち・自動 compact・声かけ）に混ざらない。claude とは別の部品（`src/bun/shell.ts`、RPC `shellOpen` / `shellInput` / `shellResize` / `shellData`）で動く。スクロールバックは 1500 行。環境変数 `MANAGER_SHELL=1` が付く。
+- シェルを出している間にダッシュボードから「貼る」「1 行打つ」（スラッシュコマンド等）をすると、先に claude に戻してから送る。
+- 反映には再起動が要る（bun 側の変更）。テスト: `pnpm test`（`src/bun/shell.test.ts`）。
+- 無効にする・戻す: `git revert <この機能の commit>`（または `src/mainview/index.html` の `#modes` を消すと切り替えが出なくなり、シェルは一度も起動しない）。シェルを一度も出さなければプロセスは起動しない。
+
 ## セッション間メッセージ（handoff）
 
 mgr・sub mgr・システムは、Write ツールで `Manager/state/ui/handoff-<YYYYMMDD-HHMMSS>.json` を書いて互いに送る（`src/bun/handoff.ts` が解釈、`src/bun/hub.ts` が届ける）。
@@ -230,6 +239,7 @@ pnpm build            # 配布用ビルド
 | `native/drag-paths.swift` | ドラッグ用ペーストボードのファイルの絶対パスを JSON で出すヘルパー |
 | `src/bun/settings.ts` | `Manager/settings/manager-app.md` の読み取り |
 | `native/ax-snapshot.swift` | 前面ウィンドウの Accessibility ツリーの文字を JSON で出すヘルパー |
+| `src/bun/shell.ts` / `shell.test.ts` | ドッキングシェル（claude タブごとの PTY シェル。Term とは別）とテスト |
 | `src/shared/types.ts` | RPC スキーマと共有の型 |
 | `src/mainview/` | 画面（HTML / CSS / TS、xterm.js） |
 | `src/mainview/graph.ts` | アイデアのグラフ（canvas と力学配置） |

@@ -15,6 +15,7 @@ import { localDate, parseNote, Vault } from "./vault";
 import { LinkTracker } from "./links";
 import { MeetingOpener } from "./meeting-open";
 import { Pulse } from "./pulse";
+import { Shells } from "./shell";
 import { readNow, replyInquiry } from "./now";
 import { readReadme } from "./readme";
 import { readSettings } from "./settings";
@@ -54,6 +55,9 @@ const hub: Hub = new Hub({
 	handoff: (id, title, from, focus) => rpc.send.handoff({ id, title, from, focus }),
 });
 
+// ドッキング式のシェル（claude タブごとに 1 つ。ボタンを押したときに初めて起動。claude 側の判定には混ぜない）
+const shells = new Shells({ cwd: () => MANAGER_DIR, data: (id, data) => rpc.send.shellData({ id, data }) });
+
 const rpc = BrowserView.defineRPC<ManagerRPC>({
 	maxRequestTime: 15000,
 	handlers: {
@@ -82,8 +86,10 @@ const rpc = BrowserView.defineRPC<ManagerRPC>({
 				const t = hub.openTask(taskPath);
 				return hub.list().find((x) => x.id === t.id)!;
 			},
+			shellOpen: ({ id, cols, rows }) => (hub.get(id) ? shells.open(id, cols, rows) : { buffer: "" }),
 			closeTerm: ({ id }) => {
 				hub.close(id);
+				if (!hub.get(id)) shells.close(id);
 				return { ok: true };
 			},
 			openExternal: ({ url }) => {
@@ -109,6 +115,8 @@ const rpc = BrowserView.defineRPC<ManagerRPC>({
 			termInput: ({ id, data }) => hub.get(id)?.write(data, true),
 			termResize: ({ id, cols, rows }) => hub.get(id)?.resize(cols, rows),
 			termFocus: ({ id }) => hub.focus(id),
+			shellInput: ({ id, data }) => shells.write(id, data),
+			shellResize: ({ id, cols, rows }) => shells.resize(id, cols, rows),
 			windowFocus: ({ focused }) => {
 				windowFocused = focused;
 			},
@@ -290,6 +298,7 @@ function readOutsideMd(path: string) {
 process.on("exit", () => {
 	devReload?.dispose();
 	hub.disposeAll();
+	shells.closeAll();
 	buddy.dispose();
 	hotkey.dispose();
 });

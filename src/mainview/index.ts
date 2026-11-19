@@ -27,6 +27,7 @@ const rpc = Electroview.defineRPC<ManagerRPC>({
 		requests: {},
 		messages: {
 			termData: ({ id, data }) => onTermData(id, data),
+			shellData: ({ id, data }) => shellTvs.get(id)?.term.write(data),
 			termsChanged: (list) => onTerms(list),
 			workersChanged: (list) => {
 				workers = list;
@@ -84,6 +85,7 @@ const docEl = $("doc");
 const tabsEl = $("tabs");
 const wstripEl = $("wstrip");
 const stackEl = $("stack");
+const modesEl = $("modes");
 const footEl = $("dock-foot");
 const pinBtn = $<HTMLButtonElement>("pin");
 const toastEl = $("toast");
@@ -1765,15 +1767,101 @@ function ensureTV(id: string): TV {
 	return tv;
 }
 
+// ───────── ドッキングシェル（claude タブごとに 1 つ。ボタンで claude と切り替える。bun/shell.ts） ─────────
+// claude とは別の RPC（shellOpen / shellInput / shellResize / shellData）で動かす。claude の入力中・出力中の判定には混ざらない。
+
+type ShellTV = { term: Terminal; fit: FitAddon; el: HTMLDivElement; opened: boolean };
+const shellTvs = new Map<string, ShellTV>();
+/** シェルを前に出している claude タブ id */
+const shellOn = new Set<string>();
+
+function ensureShellTV(id: string): ShellTV {
+	let tv = shellTvs.get(id);
+	if (tv) return tv;
+	const el = document.createElement("div");
+	el.className = "term shell";
+	el.hidden = true;
+	stackEl.appendChild(el);
+	const term = new Terminal({
+		fontFamily: TERM_FONT,
+		fontSize: termFontSize,
+		lineHeight: 1.15,
+		theme: THEME,
+		allowTransparency: true,
+		allowProposedApi: true,
+		scrollback: 1500,
+		macOptionIsMeta: true,
+		cursorBlink: false,
+	});
+	const fit = new FitAddon();
+	term.loadAddon(fit);
+	term.loadAddon(new Unicode11Addon());
+	term.unicode.activeVersion = "11";
+	term.open(el);
+	term.onData((data) => post.shellInput({ id, data }));
+	term.attachCustomKeyEventHandler((e) => {
+		if (e.metaKey && (e.code === "Minus" || e.code === "Equal" || e.code === "Digit0" || e.code === "KeyJ")) return false;
+		if (e.ctrlKey && e.key === "Tab") return false;
+		if (e.metaKey && (e.code === "KeyW" || e.code === "BracketLeft" || e.code === "BracketRight")) return false;
+		return true;
+	});
+	term.onResize(({ cols, rows }) => post.shellResize({ id, cols, rows }));
+	tv = { term, fit, el, opened: false };
+	shellTvs.set(id, tv);
+	return tv;
+}
+
+/** 今のタブの表示（claude / シェル）を反映する。初めてシェルを出すときだけ起動を頼む */
+async function applyMode() {
+	const id = currentId;
+	const on = shellOn.has(id);
+	for (const [tid, tv] of tvs) tv.el.hidden = on || tid !== id;
+	for (const [tid, tv] of shellTvs) tv.el.hidden = !on || tid !== id;
+	if (on) {
+		const tv = ensureShellTV(id);
+		tv.el.hidden = false;
+		fitCurrent();
+		requestAnimationFrame(fitCurrent);
+		if (!tv.opened) {
+			tv.opened = true;
+			const { buffer } = await api.shellOpen({ id, cols: tv.term.cols, rows: tv.term.rows });
+			tv.term.reset();
+			tv.term.write(buffer);
+		}
+		if (shellOn.has(id) && currentId === id) tv.term.focus();
+	} else {
+		const tv = tvs.get(id);
+		if (tv) tv.el.hidden = false;
+		fitCurrent();
+		requestAnimationFrame(fitCurrent);
+		tv?.term.focus();
+	}
+	renderModes();
+}
+
+function setShell(on: boolean) {
+	if (on) shellOn.add(currentId);
+	else shellOn.delete(currentId);
+	void applyMode();
+}
+
+function renderModes() {
+	const on = shellOn.has(currentId);
+	modesEl.innerHTML =
+		`<button type="button" class="mode" data-mode="claude" aria-current="${!on}" title="claude（⌘J で切り替え）">claude</button>` +
+		`<button type="button" class="mode" data-mode="shell" aria-current="${on}" title="このタブのシェル（⌘J で切り替え）">シェル</button>`;
+}
+modesEl.addEventListener("click", (e) => {
+	const b = (e.target as HTMLElement).closest<HTMLElement>("[data-mode]");
+	if (b) setShell(b.dataset.mode === "shell");
+});
+
 async function showTerm(id: string) {
 	if (!terms.some((t) => t.id === id)) return;
 	if (id !== currentId) leftAt.set(currentId, Date.now());
 	currentId = id;
-	for (const [tid, tv] of tvs) tv.el.hidden = tid !== id;
 	const tv = ensureTV(id);
-	tv.el.hidden = false;
-	fitCurrent();
-	requestAnimationFrame(fitCurrent); // タブ切替でレイアウトが動いた後にもう一度合わせる
+	await applyMode();
 	if (!tv.attached) {
 		const { buffer } = await api.attach({ id, cols: tv.term.cols, rows: tv.term.rows });
 		tv.term.reset();
@@ -1781,7 +1869,7 @@ async function showTerm(id: string) {
 		tv.attached = true;
 	}
 	post.termFocus({ id });
-	tv.term.focus();
+	if (!shellOn.has(id)) tv.term.focus();
 	renderTabs();
 	renderFoot();
 	renderBoard();
@@ -1793,6 +1881,7 @@ function onTermData(id: string, data: string) {
 }
 
 function paste(text: string) {
+	if (shellOn.has(currentId)) setShell(false); // claude に貼る
 	const tv = tvs.get(currentId);
 	if (!tv) return;
 	tv.term.paste(text);
@@ -1801,6 +1890,7 @@ function paste(text: string) {
 
 /** 1 行打って Enter（スラッシュコマンド用） */
 function typeLine(text: string) {
+	if (shellOn.has(currentId)) setShell(false);
 	post.termInput({ id: currentId, data: text });
 	setTimeout(() => post.termInput({ id: currentId, data: "\r" }), 60);
 	tvs.get(currentId)?.term.focus();
@@ -1808,7 +1898,7 @@ function typeLine(text: string) {
 
 /** 今のターミナルを枠に合わせ直す（隠れているタブは showTerm で表示するときに合わせる） */
 function fitCurrent() {
-	const tv = tvs.get(currentId);
+	const tv = shellOn.has(currentId) ? shellTvs.get(currentId) : tvs.get(currentId);
 	// 寸法 0（畳んでいる・レイアウト確定前）で fit すると行数が 1〜2 になって表示が崩れるので何もしない
 	if (tv && !tv.el.hidden && stackEl.clientWidth > 0 && stackEl.clientHeight > 20) tv.fit.fit();
 }
@@ -1856,7 +1946,8 @@ function setTermFont(size: number) {
 	termFontSize = Math.min(Math.max(size, 8), 24);
 	store("termFontSize", String(termFontSize));
 	for (const tv of tvs.values()) tv.term.options.fontSize = termFontSize;
-	const tv = tvs.get(currentId);
+	for (const tv of shellTvs.values()) tv.term.options.fontSize = termFontSize;
+	const tv = shellOn.has(currentId) ? shellTvs.get(currentId) : tvs.get(currentId);
 	if (tv && !tv.el.hidden) tv.fit.fit();
 	toast(`ターミナルの文字 ${termFontSize}px`);
 }
@@ -1870,7 +1961,7 @@ function focusArea(area: "board" | "term") {
 	lastArea = area;
 	appEl.dataset.focus = area;
 	if (area === "term") {
-		tvs.get(currentId)?.term.focus();
+		(shellOn.has(currentId) ? shellTvs : tvs).get(currentId)?.term.focus();
 		return;
 	}
 	(document.activeElement as HTMLElement | null)?.blur();
@@ -1911,6 +2002,8 @@ document.addEventListener(
 			focusArea("board");
 		} else if (cmd && !e.shiftKey && e.code === "BracketRight") {
 			focusArea("term");
+		} else if (cmd && !e.shiftKey && e.code === "KeyJ") {
+			setShell(!shellOn.has(currentId));
 		} else return;
 		e.preventDefault();
 		e.stopPropagation();
@@ -2019,6 +2112,14 @@ function onTerms(list: TermInfo[]) {
 			tv.term.dispose();
 			tv.el.remove();
 			tvs.delete(id);
+		}
+	}
+	for (const [id, tv] of shellTvs) {
+		if (!terms.some((t) => t.id === id)) {
+			tv.term.dispose();
+			tv.el.remove();
+			shellTvs.delete(id);
+			shellOn.delete(id);
 		}
 	}
 	if (!terms.some((t) => t.id === currentId)) void showTerm("main");

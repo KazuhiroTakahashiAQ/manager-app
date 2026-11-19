@@ -220,6 +220,8 @@ export type ManagerRPC = {
 			attach: { params: { id: string; cols: number; rows: number }; response: { buffer: string } };
 			openTask: { params: { taskPath: string }; response: TermInfo };
 			closeTerm: { params: { id: string }; response: { ok: boolean } };
+			/** claude タブ id のシェルを開く（初めてなら起動。cwd は claude タブと同じ）。これまでの出力を返す */
+			shellOpen: { params: { id: string; cols: number; rows: number }; response: { buffer: string } };
 			openExternal: { params: { url: string }; response: { ok: boolean } };
 			openInObsidian: { params: { path: string }; response: { ok: boolean } };
 			/** Clawd くんに話す（返事は buddyDelta / buddyReply で届く） */
@@ -242,6 +244,9 @@ export type ManagerRPC = {
 			termResize: { id: string; cols: number; rows: number };
 			/** いま画面に出しているターミナル */
 			termFocus: { id: string };
+			/** シェルの入力・大きさ（claude の termInput / termResize とは別。入力中判定に混ぜない） */
+			shellInput: { id: string; data: string };
+			shellResize: { id: string; cols: number; rows: number };
 			/** ウィンドウが前面か（声かけの macOS 通知を出すかどうか） */
 			windowFocus: { focused: boolean };
 		}
@@ -250,6 +255,7 @@ export type ManagerRPC = {
 		{},
 		{
 			termData: { id: string; data: string };
+			shellData: { id: string; data: string };
 			termsChanged: TermInfo[];
 			workersChanged: WorkerInfo[];
 			linksChanged: Record<string, LinkInfo[]>;
