@@ -2,8 +2,8 @@
 // - WKWebView はドロップされた File のローカルパスを渡さない。drop の直後にドラッグ用のペーストボードを
 //   Swift のヘルパー（native/drag-paths.swift）で読み、名前と大きさが合うパスを返す（resolve）。
 // - パスが取れないとき（ほかのアプリからの画像など）は、画面がファイルを読んで少しずつ送り、ここで書く（upload）。
-//   ターミナル向けは userData/drops/、Clawd くん向けは ~/work/buddy/drops/ に置く。
-// - Clawd くんは ~/work/buddy/ の中しか読めない（buddy-files.ts の権限）ので、渡すファイルは drops/ にコピーする（toBuddy）。
+//   ターミナル向けは userData/drops/、Clawd くん向けは <repo>/buddy/drops/ に置く。
+// - Clawd くんは <repo>/buddy/ の中しか読めない（buddy-files.ts の権限）ので、渡すファイルは drops/ にコピーする（toBuddy）。
 //   権限は広げない。大きすぎるもの・フォルダは断る。
 // - drops/ は起動時に 7 日より古いものを消す。
 
@@ -74,7 +74,7 @@ export class Drops {
 		});
 	}
 
-	/** Clawd くんが読めるよう、~/work/buddy/drops/ にコピーする */
+	/** Clawd くんが読めるよう、<repo>/buddy/drops/ にコピーする */
 	toBuddy(raw: string): DropResult {
 		const path = expand(raw);
 		if (!path) return { ok: false, error: "パスが分からない" };

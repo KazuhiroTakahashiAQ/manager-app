@@ -154,7 +154,7 @@ const devReload =
 			})
 		: null;
 
-// 壁打ち相手 Clawd くん（~/work/buddy で haiku を 1 本持ち続ける。起動ごとに新しい会話）
+// 壁打ち相手 Clawd くん（<repo>/buddy で haiku を 1 本持ち続ける。起動ごとに新しい会話）
 const buddyDir = defaultBuddyDir();
 // ターミナル・Clawd くんへのファイルのドロップ
 const drops = new Drops({ dataDir: Utils.paths.userData, buddyDir });

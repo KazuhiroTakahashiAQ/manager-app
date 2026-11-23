@@ -231,7 +231,7 @@ export type ManagerRPC = {
 			dropResolve: { params: { files: { name: string; size: number }[] }; response: { paths: (string | null)[] } };
 			/** 文字で落とされたパス（~/ ・file:// も可）があるか */
 			dropCheck: { params: { paths: string[] }; response: { items: { path: string; exists: boolean; dir: boolean }[] } };
-			/** Clawd くんが読めるよう ~/work/buddy/drops/ にコピーする */
+			/** Clawd くんが読めるよう <repo>/buddy/drops/ にコピーする */
 			dropToBuddy: { params: { path: string }; response: DropResult };
 			/** パスが取れないファイルの中身を少しずつ送る（base64）。last で置いたパスが返る */
 			dropUpload: {
