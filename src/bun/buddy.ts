@@ -1,14 +1,15 @@
-// 壁打ち相手「Clawd くん」の会話。~/work/buddy/（祖先に CLAUDE.md がない場所）で claude を 1 本持ち続け、
+// 壁打ち相手「Clawd くん」の会話。<repo>/buddy/（祖先に CLAUDE.md がない場所）で claude を 1 本持ち続け、
 // stream-json で発言を送り、返事をストリームで受ける。アプリを開くたびに新しい会話にする（--resume しない）。
 // - 書けるのは Manager/state/buddy/feedback-*.json と Manager/ideas/*.md だけ（buddy-files.ts の権限）。
 // - 非対話なので許可の確認は出せない。dontAsk で、許可していないものはすべて断られる。
-// - 10 日ごとに過去 30 日の会話を haiku で要約し、~/work/buddy/memory.md に書く（CLAUDE.md が @memory.md で読む）。
+// - 10 日ごとに過去 30 日の会話を haiku で要約し、<repo>/buddy/memory.md に書く（CLAUDE.md が @memory.md で読む）。
 
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import type { BuddyLine, BuddyState } from "../shared/types";
 import { buddyRules, ensureBuddyFiles } from "./buddy-files";
+import { projectRootFrom } from "./dev-reload";
 import { runHaiku } from "./haiku";
 import { cleanEnv } from "./term";
 import { localDate } from "./vault";
@@ -70,7 +71,7 @@ export class Buddy {
 		try {
 			ensureBuddyFiles(this.o.managerDir, this.o.buddyDir);
 		} catch (e) {
-			console.error("~/work/buddy を用意できなかった", e);
+			console.error(`${this.o.buddyDir} を用意できなかった`, e);
 		}
 		const r = buddyRules(this.o.managerDir, this.o.buddyDir);
 		const args = [
@@ -290,7 +291,17 @@ type StreamEvent = {
 	result?: unknown;
 };
 
-/** 既定の作業場 */
-export function defaultBuddyDir(): string {
-	return process.env["BUDDY_DIR"] ?? join(homedir(), "work", "buddy");
+/**
+ * 既定の作業場。BUDDY_DIR → リポジトリ直下の buddy/（dev-reload・README と同じルート解決）→ ~/Documents/work/manager-app/buddy。
+ * 祖先に CLAUDE.md を置かないこと（リポジトリ直下に CLAUDE.md を足すと Clawd くんが読んでしまう）。
+ */
+export function defaultBuddyDir(
+	cwd: string = process.cwd(),
+	env: Record<string, string | undefined> = process.env,
+	exists: (p: string) => boolean = existsSync,
+	home: string = homedir(),
+): string {
+	if (env["BUDDY_DIR"]) return env["BUDDY_DIR"];
+	const root = projectRootFrom(cwd, env, (d) => exists(join(d, "electrobun.config.ts")) && exists(join(d, "buddy")));
+	return join(root ?? join(home, "Documents", "work", "manager-app"), "buddy");
 }

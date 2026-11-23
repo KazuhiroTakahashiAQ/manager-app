@@ -2209,7 +2209,7 @@ function toast(text: string, action?: () => void, opts: { label?: string; sticky
 // ───────── 壁打ち相手 Clawd くん（画面の上を歩く。Ctrl の 2 連打で呼ぶ） ─────────
 
 let buddyState: BuddyState = "starting";
-let buddyDir = "~/work/buddy";
+let buddyDir = "buddy";
 const clawd = new Clawd((text) => void api.buddySend({ text }), { load, save: store });
 
 // ファイル・パス・テキストのドロップ（ターミナルには Terminal.app と同じくエスケープしたパスを、Clawd くんには drops/ にコピーして渡す）
