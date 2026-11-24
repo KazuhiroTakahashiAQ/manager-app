@@ -13,7 +13,7 @@ import { linePosition, lineSvg, ownLinePosition, parseLineOpts, progressRatio, r
 import { rowKindClass, runKindClass } from "./seg";
 import { MIN_SIZE, clampRatio, gridFlex, ratioFromPointer } from "./layout";
 import { README_LABEL, README_TAB, docLabel, dynamicDocTabs, shouldRefreshReadme } from "./readme-tab";
-import { SHEET_LABEL, SHEET_TAB, type SheetState, sheetHtml, shouldRefreshSheet } from "./sheet-tab";
+import { SHEET_LABEL, SHEET_TAB, type SheetState, sheetHtml, sheetZoomMessage, sheetZoomStep, shouldRefreshSheet } from "./sheet-tab";
 import { NOW_LABEL, NOW_TAB, canSendReply, nowBadge, shouldRefreshNow } from "./now-tab";
 import { unansweredCount } from "../shared/now";
 import { RELOAD_KEY, decodeReloadState, encodeReloadState, pickTerm } from "./reload-state";
@@ -2025,6 +2025,15 @@ document.addEventListener(
 			return;
 		}
 		const board = lastArea === "board";
+		// シートタブを見ているときは、盤面ではなくシートの文字を拡縮する（ハブ側が倍率を持つ。iframe にフォーカスがあるときはハブ側のキー処理が受ける）
+		const sheetStep = sheetZoomStep(e);
+		const sheetFrame = readerEl.querySelector<HTMLIFrameElement>(".sheet-frame");
+		if (board && sheetStep !== null && current?.path === SHEET_TAB && sheetFrame?.contentWindow) {
+			sheetFrame.contentWindow.postMessage(sheetZoomMessage(sheetStep), "http://localhost:8765");
+			e.preventDefault();
+			e.stopPropagation();
+			return;
+		}
 		if (e.code === "Minus") board ? setBoardZoom(e.shiftKey ? 1 : -1) : setTermFont(termFontSize + (e.shiftKey ? 1 : -1));
 		else if (e.code === "Equal") board ? setBoardZoom(1) : setTermFont(termFontSize + 1);
 		else if (e.code === "Digit0") board ? setBoardZoom("reset") : setTermFont(DEFAULT_FONT_SIZE);

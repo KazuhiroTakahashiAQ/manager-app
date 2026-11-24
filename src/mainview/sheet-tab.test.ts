@@ -27,3 +27,16 @@ describe("sheet-tab", () => {
 		expect(dynamicDocTabs([{ path: SHEET_TAB }, { path: "tasks/a.md" }])).toEqual([{ path: "tasks/a.md" }]);
 	});
 });
+
+import { sheetZoomMessage, sheetZoomStep } from "./sheet-tab";
+describe("sheetZoomStep", () => {
+	test("⌘- は縮小、⌘⇧- と ⌘= は拡大、⌘0 は既定", () => {
+		expect(sheetZoomStep({ code: "Minus", shiftKey: false })).toBe(-1);
+		expect(sheetZoomStep({ code: "Minus", shiftKey: true })).toBe(1);
+		expect(sheetZoomStep({ code: "Equal", shiftKey: false })).toBe(1);
+		expect(sheetZoomStep({ code: "Equal", shiftKey: true })).toBe(1);
+		expect(sheetZoomStep({ code: "Digit0", shiftKey: false })).toBe("reset");
+		expect(sheetZoomStep({ code: "KeyA", shiftKey: false })).toBeNull();
+		expect(sheetZoomMessage(1)).toEqual({ type: "sheet-preview:zoom", step: 1 });
+	});
+});

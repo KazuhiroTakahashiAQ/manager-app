@@ -34,3 +34,16 @@ export function sheetHtml(state: SheetState | boolean): string {
 				: `ハブ未起動。<code>${SHEET_START_CMD}</code> で起動`;
 	return `<div class="sheet-down"><p>${msg}</p><button type="button" class="quiet" data-sheet-recheck>再確認</button></div>`;
 }
+
+/** シートタブの文字の拡大縮小（⌘- 縮小、⌘⇧- と ⌘= / ⌘+ 拡大、⌘0 既定）。該当しないキーは null */
+export function sheetZoomStep(e: { code: string; shiftKey: boolean }): -1 | 1 | "reset" | null {
+	if (e.code === "Minus") return e.shiftKey ? 1 : -1;
+	if (e.code === "Equal") return 1;
+	if (e.code === "Digit0") return "reset";
+	return null;
+}
+
+/** ハブ（iframe）へ送るズーム指示。倍率の保存・表示はハブ側（template.html）が持つ */
+export function sheetZoomMessage(step: -1 | 1 | "reset"): { type: "sheet-preview:zoom"; step: -1 | 1 | "reset" } {
+	return { type: "sheet-preview:zoom", step };
+}
