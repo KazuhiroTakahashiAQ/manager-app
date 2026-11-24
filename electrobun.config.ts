@@ -25,6 +25,8 @@ export default {
 		},
 		mac: {
 			bundleCEF: false,
+			// アプリアイコン（assets/icon.svg から作る。README「アイコン」参照）
+			icons: "assets/icon.iconset",
 		},
 		linux: {
 			bundleCEF: false,

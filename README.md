@@ -216,6 +216,25 @@ pnpm build            # 配布用ビルド
 
 アプリ自身の状態（タブとセッション ID）は Electrobun の userData（`terms.json`。声かけの記録は `pulse.json`、定期の compact の記録は `compact.json`）に置く。Manager/ に書くのは、引き継ぎ・予約・壁打ちのファイルを読んで消す（壁打ちは `state/buddy/log.jsonl` に移す）とき、届けられなかったメッセージの `state/ui/handoff-errors.log`、`state/ui/sessions.json`、自動で開いた会議の記録（`state/ui/meeting-open.json`）、活動の記録（`state/activity/`）、Clawd くんのための `state/buddy/`・`ideas/` のフォルダ作成だけ（中身を書くのは Clawd くん）。
 
+## アイコン
+
+- ソース: `assets/icon.svg`（手書き SVG。紺の角丸正方形にカレンダー + チェック）。プレビュー用 PNG は `assets/icon-1024.png`。
+- Electrobun は `electrobun.config.ts` の `build.mac.icons`（= `assets/icon.iconset`）を、ビルド時に iconutil で .icns にしてアプリに入れる。`.iconset` フォルダ（コミット済み）を指すので、.icns 自体は置かない。
+- 作り直し（`rsvg-convert` は `brew install librsvg`）:
+
+```sh
+cd assets
+rsvg-convert -w 1024 -h 1024 icon.svg -o icon-1024.png
+rm -rf icon.iconset && mkdir icon.iconset
+for s in 16 32 128 256 512; do
+  rsvg-convert -w $s -h $s icon.svg -o icon.iconset/icon_${s}x${s}.png
+  rsvg-convert -w $((s*2)) -h $((s*2)) icon.svg -o icon.iconset/icon_${s}x${s}@2x.png
+done
+iconutil -c icns icon.iconset -o /tmp/check.icns   # 検証用（不要なら省略）
+```
+
+- 反映: アプリの再起動（dev ならビルドし直し）が要る。dev ビルドで Dock のアイコンが変わるかは未確認（Hutch 2.0.6 の公開 API に dev での扱いの記述が無い）。変わらなければ `pnpm build`（stable）の .app で確認する。
+
 ## 構成
 
 | パス | 内容 |

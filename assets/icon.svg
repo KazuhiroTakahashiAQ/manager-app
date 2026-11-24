@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a4a63"/>
+      <stop offset="1" stop-color="#232f42"/>
+    </linearGradient>
+  </defs>
+  <!-- macOS 風の角丸正方形（外周 100px の余白） -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <!-- カレンダー -->
+  <rect x="244" y="270" width="536" height="500" rx="64" fill="#f4f1ea"/>
+  <path d="M244 334a64 64 0 0 1 64-64h408a64 64 0 0 1 64 64v82H244z" fill="#e0a458"/>
+  <rect x="360" y="212" width="40" height="120" rx="20" fill="#f4f1ea"/>
+  <rect x="624" y="212" width="40" height="120" rx="20" fill="#f4f1ea"/>
+  <!-- チェックマーク -->
+  <path d="M396 596l86 86 156-176" fill="none" stroke="#2f3d55" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
