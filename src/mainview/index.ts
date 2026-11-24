@@ -1927,6 +1927,8 @@ document.addEventListener("focusin", (e) => {
 function applyBoardZoom() {
 	// zoom は WebKit で効き、レイアウトごと拡大縮小する（transform と違って崩れない）
 	(boardMain.style as CSSStyleDeclaration & { zoom: string }).zoom = String(boardZoom);
+	// iframe（シートタブ）は zoom の分だけ表示領域が縮む（0.8 倍なら 80%）。逆数の zoom を CSS 変数で渡して打ち消す
+	boardMain.style.setProperty("--board-zoom", String(boardZoom));
 }
 
 function setBoardZoom(step: number | "reset") {
