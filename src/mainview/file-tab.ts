@@ -32,7 +32,7 @@ function sizeLabel(n: number): string {
 	return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-type State = { cwd: string; dir: string; entries: FileEntry[]; sel: number; error: string; loaded: boolean };
+type State = { id: string; cwd: string; live: boolean; cwdAt: number; dir: string; entries: FileEntry[]; sel: number; error: string; loaded: boolean };
 const RELOAD_CWD_MS = 30_000;
 
 export class FileTab {
@@ -40,7 +40,6 @@ export class FileTab {
 	private id = "";
 	private hidden = false;
 	private qlOpen = false;
-	private cwdAt = 0;
 	private head: HTMLElement;
 	private list: HTMLElement;
 	private input: HTMLInputElement;
@@ -81,59 +80,69 @@ export class FileTab {
 	private st(): State {
 		let s = this.states.get(this.id);
 		if (!s) {
-			s = { cwd: "", dir: "", entries: [], sel: 0, error: "", loaded: false };
+			s = { id: this.id, cwd: "", live: true, cwdAt: 0, dir: "", entries: [], sel: 0, error: "", loaded: false };
 			this.states.set(this.id, s);
 		}
 		return s;
 	}
 
-	/** File タブを前に出した / 親タブが切り替わった。claude の cwd に追従する（古ければ取り直す） */
+	/**
+	 * File タブを前に出した / 親タブが切り替わった。初回はそのタブの claude の cwd の一覧をすぐ出す（入力待ち・空表示にしない）。
+	 * 2 回目以降は前回の場所を出し、cwd が変わっていれば（今 cwd にいるときだけ）追従する。
+	 * 非同期の途中でタブが切り替わっても、結果は取りに行った側の状態に書く。
+	 */
 	async show(id: string) {
 		this.id = id;
 		const s = this.st();
-		if (!s.loaded) await this.resetToCwd();
-		else {
-			this.render();
-			if (Date.now() - this.cwdAt > RELOAD_CWD_MS) await this.refreshCwd();
-		}
-		this.el.focus();
+		this.render();
+		if (!s.loaded) await this.resetToCwd(s);
+		else if (Date.now() - s.cwdAt > RELOAD_CWD_MS) await this.refreshCwd(s);
+		if (this.id === id) this.el.focus();
 	}
 
 	/** cwd が変わっていたら、そこへ追従する（今いる場所が前の cwd のままのときだけ） */
-	private async refreshCwd() {
-		const s = this.st();
-		const { cwd } = await this.api.filesCwd({ id: this.id });
-		this.cwdAt = Date.now();
+	private async refreshCwd(s: State) {
+		const { cwd, live } = await this.fetchCwd(s);
 		if (cwd !== s.cwd) {
 			const following = s.dir === s.cwd;
 			s.cwd = cwd;
-			if (following) await this.load(cwd);
+			s.live = live;
+			if (following) await this.load(s, cwd);
 		}
 	}
 
-	private async resetToCwd() {
-		const s = this.st();
-		const { cwd } = await this.api.filesCwd({ id: this.id });
-		this.cwdAt = Date.now();
+	private async resetToCwd(s: State) {
+		const { cwd, live } = await this.fetchCwd(s);
 		s.cwd = cwd;
-		await this.load(cwd);
+		s.live = live;
+		await this.load(s, cwd);
 	}
 
-	private async load(dir: string, select?: string) {
-		const s = this.st();
-		const r = await this.api.filesList({ path: dir, hidden: this.hidden });
-		s.loaded = true;
-		if (!r.ok) {
-			s.error = `${r.error ?? "開けない"}: ${dir}`;
-			this.render();
+	private async fetchCwd(s: State): Promise<{ cwd: string; live: boolean }> {
+		let r: { cwd: string; live: boolean };
+		try {
+			r = await this.api.filesCwd({ id: s.id });
+		} catch {
+			r = { cwd: s.cwd || "/", live: false }; // bun が応答しない: 前回の場所（なければ /）で出す
+		}
+		s.cwdAt = Date.now();
+		return r;
+	}
+
+	private async load(s: State, dir: string, select?: string) {
+		const r = await this.api.filesList({ path: dir, hidden: this.hidden }).catch(() => null);
+		if (!r || !r.ok) {
+			s.error = `${r?.error ?? "開けない"}: ${dir}`;
+			this.render(s);
 			return;
 		}
+		s.loaded = true;
 		s.error = "";
 		s.dir = r.path;
 		s.entries = r.entries;
 		const at = select ? r.entries.findIndex((e) => e.name === select) : -1;
 		s.sel = at >= 0 ? at : 0;
-		this.render();
+		this.render(s);
 	}
 
 	/** パス入力・外から渡された相対 / 絶対パス。ディレクトリなら入る、ファイルなら親を開いて選択 */
@@ -146,10 +155,10 @@ export class FileTab {
 			this.render();
 			return;
 		}
-		if (r.dir) await this.load(r.path);
+		if (r.dir) await this.load(s, r.path);
 		else {
 			const slash = r.path.lastIndexOf("/");
-			await this.load(r.path.slice(0, slash) || "/", r.path.slice(slash + 1));
+			await this.load(s, r.path.slice(0, slash) || "/", r.path.slice(slash + 1));
 		}
 		this.input.value = "";
 		this.el.focus();
@@ -159,14 +168,14 @@ export class FileTab {
 		const s = this.st();
 		if (s.dir && s.dir !== "/") {
 			const slash = s.dir.lastIndexOf("/");
-			await this.load(s.dir.slice(0, slash) || "/", s.dir.slice(slash + 1));
+			await this.load(s, s.dir.slice(0, slash) || "/", s.dir.slice(slash + 1));
 		}
 	}
 
 	private async activate(i: number) {
 		const e = this.st().entries[i];
 		if (!e) return;
-		if (e.dir) await this.load(e.path);
+		if (e.dir) await this.load(this.st(), e.path);
 		else await this.api.openPath({ path: e.path });
 	}
 
@@ -210,15 +219,15 @@ export class FileTab {
 		const t = e.target as HTMLElement;
 		const s = this.st();
 		const crumb = t.closest<HTMLElement>("[data-path]");
-		if (crumb) return void this.load(crumb.dataset.path!);
+		if (crumb) return void this.load(s, crumb.dataset.path!);
 		const act = t.closest<HTMLElement>("[data-act]");
 		if (act) {
 			const a = act.dataset.act;
 			if (a === "hidden") {
 				this.hidden = !this.hidden;
-				void this.load(s.dir || s.cwd);
-			} else if (a === "reload") void this.load(s.dir || s.cwd);
-			else if (a === "cwd") void this.resetToCwd();
+				void this.load(s, s.dir || s.cwd);
+			} else if (a === "reload") void this.load(s, s.dir || s.cwd);
+			else if (a === "cwd") void this.resetToCwd(s);
 			else {
 				const i = Number(act.closest<HTMLElement>("[data-i]")?.dataset.i);
 				const en = s.entries[i];
@@ -246,13 +255,14 @@ export class FileTab {
 		}
 	}
 
-	private render() {
-		const s = this.st();
+	private render(st?: State) {
+		const s = st ?? this.st();
+		if (s.id !== this.id) return; // 裏で終わった別タブの結果は、そのタブを開いたときに描く
 		this.crumbEl.innerHTML = crumbs(s.dir || s.cwd || "/")
 			.map((c) => `<button type="button" class="ft-crumb" data-path="${esc(c.path)}">${esc(c.name)}</button>`)
 			.join("");
 		this.head.querySelector("[data-act='hidden']")!.setAttribute("aria-pressed", String(this.hidden));
-		this.msg.textContent = s.error;
+		this.msg.textContent = s.error || (s.live ? "" : "claude の cwd を取れなかったので Manager/ を表示");
 		this.msg.dataset.error = String(Boolean(s.error));
 		this.list.innerHTML = s.entries.length
 			? s.entries
@@ -266,6 +276,6 @@ export class FileTab {
 							`<button type="button" data-act="copy" title="パスをコピー">パス</button></span></div>`,
 					)
 					.join("")
-			: `<div class="ft-empty">${s.loaded ? "空" : "読み込み中…"}</div>`;
+			: `<div class="ft-empty">${s.loaded ? "空" : s.error ? "" : "読み込み中…"}</div>`;
 	}
 }
