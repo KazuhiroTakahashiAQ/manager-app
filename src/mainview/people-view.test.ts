@@ -110,12 +110,12 @@ describe("グラフ（プロジェクトで絞る）", () => {
 		expect(g.nodes.map((n) => n.id).sort()).toEqual([personId("小甲"), personId("石井"), personId("荒川"), pjId("甲")].sort());
 		expect(g.fixed).toBe(true);
 	});
-	test("指揮の上が上、PJ が最上段、弧のない人は最下段", () => {
+	test("指揮の上が上、PJ が最上段、弧のない人は works_with の相手と同じ段（相手がなければ最下段）", () => {
 		const y = (id: string) => g.nodes.find((n) => n.id === id)!.y!;
 		expect(y(pjId("甲"))).toBe(0);
 		expect(y(personId("石井"))).toBe(GAP_Y);
 		expect(y(personId("荒川"))).toBe(2 * GAP_Y);
-		expect(y(personId("小甲"))).toBe(3 * GAP_Y);
+		expect(y(personId("小甲"))).toBe(GAP_Y); // 石井と works_with なので同じ段
 	});
 	test("PJ からは階層の最上位にだけ線を引く", () => {
 		const fromPj = g.edges.filter((e) => e.a === pjId("甲"));
@@ -151,6 +151,19 @@ describe("階層レイアウト", () => {
 		]);
 		expect(m.get("a")!.level).toBe(0);
 		expect(m.get("b")!.level).toBe(1);
+	});
+	test("works_with の相手は弧を持つ側と同じ段に置く（弧がある人の段は変えない）", () => {
+		const arcs = [{ from: "pm", to: "se" }];
+		const m = hierLayout(["pm", "se", "mgr", "x", "lone"], arcs, [{ a: "mgr", b: "pm" }, { a: "x", b: "mgr" }]);
+		expect(m.get("pm")!.level).toBe(0);
+		expect(m.get("se")!.level).toBe(1);
+		expect(m.get("mgr")!.level).toBe(0);
+		expect(m.get("x")!.level).toBe(0); // 連鎖は最初に決まった側に揃える
+		expect(m.get("lone")!.level).toBe(2); // 孤立は従来どおり最下段
+	});
+	test("弧のある人どうしの works_with は段を動かさない", () => {
+		const m = hierLayout(["a", "b", "c"], [{ from: "a", to: "b" }, { from: "b", to: "c" }], [{ a: "a", b: "c" }]);
+		expect([m.get("a")!.level, m.get("b")!.level, m.get("c")!.level]).toEqual([0, 1, 2]);
 	});
 	test("弧がなければ全員同じ行", () => {
 		const m = hierLayout(["a", "b"], []);

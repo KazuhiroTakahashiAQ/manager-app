@@ -127,12 +127,13 @@ describe("Vault.people / projects", () => {
 
 const REAL = "/Users/kazuhiro.takahashi/Documents/Obsidian Vault/Manager";
 describe.skipIf(!existsSync(join(REAL, "memory", "people")))("実データ", () => {
-	test("4 人 + 1 PJ を読める", () => {
+	test("実 vault の関係者と PJ の体制を読める（人数は増えるので主要な人と関係だけ見る）", () => {
 		const v = new Vault(REAL);
-		const people = v.people();
-		expect(people.map((p) => p.name).sort()).toEqual(["小甲達也", "石井智也", "荒川哲也", "髙橋一広"].sort());
+		const names = v.people().map((p) => p.name);
+		for (const n of ["小甲達也", "石井智也", "荒川哲也", "髙橋一広"]) expect(names).toContain(n);
 		const pj = v.projects().find((p) => p.name === "ダイダン施工図自動作成")!;
-		expect(pj.members.map((m) => m.name)).toEqual(["髙橋一広", "石井智也", "荒川哲也", "小甲達也"]);
-		expect(pj.links.map((l) => l.rel)).toEqual(["commands", "works_with", "works_with"]);
+		const members = pj.members.map((m) => m.name);
+		for (const n of ["髙橋一広", "石井智也", "荒川哲也", "小甲達也"]) expect(members).toContain(n);
+		expect(pj.links.some((l) => l.rel === "reports_to" && l.from === "髙橋一広" && l.to === "石井智也")).toBe(true);
 	});
 });

@@ -101,9 +101,11 @@ export const GAP_Y = 110;
 /**
  * 簡易な階層レイアウト。弧に出てくるノードを上から下の層に並べ（最長経路の深さ。循環は後ろ向きの弧を無視）、
  * 弧に出てこないノードは一番下の行にまとめる。層の中は親の位置の平均で並べ替える。
- * 戻り値の level は 0 が最上段、弧のないノードは最下段（弧が 1 本もなければ全員 0）。
+ * 弧のないノードは、works_with の相手（peers）に段が決まった人がいればその段に横並びで置く（連鎖は最初に決まった側に揃える）。
+ * 揃える相手が決まらない孤立ノードだけ最下段にまとめる。
+ * 戻り値の level は 0 が最上段、孤立ノードは最下段（弧が 1 本もなければ全員 0）。
  */
-export function hierLayout(ids: string[], arcsIn: { from: string; to: string }[]): Map<string, { x: number; y: number; level: number }> {
+export function hierLayout(ids: string[], arcsIn: { from: string; to: string }[], peers: { a: string; b: string }[] = []): Map<string, { x: number; y: number; level: number }> {
 	const idSet = new Set(ids);
 	const arcs = arcsIn.filter((a) => idSet.has(a.from) && idSet.has(a.to) && a.from !== a.to);
 	const children = new Map<string, string[]>();
@@ -139,7 +141,20 @@ export function hierLayout(ids: string[], arcsIn: { from: string; to: string }[]
 	for (const v of inHier) depth(v);
 	const maxLevel = inHier.size ? Math.max(...level.values()) : -1;
 	const looseLevel = inHier.size ? maxLevel + 1 : 0;
-	for (const v of ids) if (!inHier.has(v)) level.set(v, looseLevel);
+	// 弧のないノードを works_with の相手の段に揃える（段が決まった側から順に広げる）
+	const aligned = new Set<string>();
+	for (let changed = inHier.size > 0; changed; ) {
+		changed = false;
+		for (const v of ids) {
+			if (inHier.has(v) || aligned.has(v)) continue;
+			const hit = peers.find((e) => (e.a === v && level.has(e.b) && idSet.has(e.b)) || (e.b === v && level.has(e.a) && idSet.has(e.a)));
+			if (!hit) continue;
+			level.set(v, level.get(hit.a === v ? hit.b : hit.a)!);
+			aligned.add(v);
+			changed = true;
+		}
+	}
+	for (const v of ids) if (!inHier.has(v) && !aligned.has(v)) level.set(v, looseLevel);
 
 	// 層ごとの並び（入力順 → 親の平均位置で 2 回整える）
 	const rows: string[][] = [];
@@ -240,7 +255,8 @@ export function buildGraph(people: PersonNote[], pjs: PjNote[], f: Filter): Peop
 	const inSel = raw.filter((e) => e.rel !== "member_of" && shownNames.has(e.a) && shownNames.has(e.b));
 	const pjArcs = hierArcs(inSel.filter((e) => e.pj === pjSel));
 	const personIds = shown.map((p) => personId(p.name));
-	const pos = hierLayout(personIds, pjArcs.map((a) => ({ from: personId(a.from), to: personId(a.to) })));
+	const peers = inSel.filter((e) => e.rel === "works_with").map((e) => ({ a: personId(e.a), b: personId(e.b) }));
+	const pos = hierLayout(personIds, pjArcs.map((a) => ({ from: personId(a.from), to: personId(a.to) })), peers);
 	const hasHier = pjArcs.some((a) => shownNames.has(a.from) && shownNames.has(a.to));
 	const tops = hasHier ? personIds.filter((id) => pos.get(id)?.level === 0 && pjArcs.some((a) => personId(a.from) === id)) : personIds;
 	const shift = 1; // PJ ノードを最上段（level -1）に
