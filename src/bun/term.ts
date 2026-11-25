@@ -30,7 +30,7 @@ type Env = {
 
 const MAX_BUFFER = 512 * 1024;
 
-/** 役職ごとのモデル（mgr / sub mgr は sonnet。壁打ちの Clawd くんは buddy.ts で haiku） */
+/** 役職ごとのモデル（mgr / sub mgr は sonnet） */
 export function modelOf(_kind: TermKind): string {
 	return "sonnet";
 }

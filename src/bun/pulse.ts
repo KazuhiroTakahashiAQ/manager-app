@@ -4,9 +4,8 @@
 // - 設定は Manager/settings/manager-app.md（なければ既定値）。
 // - mgr 自身も state/ui/nudge-*.json（{ "at": "HH:MM" か ISO, "text": "…" }）を書けば、後で自分に合図を送れる。
 // - 活動の記録（activity.ts）から、脱線（関係ないことが続く）と停滞（同じタスクにいてノートが進まない）を拾う。
-// - 壁打ちが書いた state/buddy/feedback-*.json を拾って合図し、state/buddy/log.jsonl に移す。
 
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import type { VaultState } from "../shared/types";
 import { taskMtime, type Run } from "./activity";
@@ -73,7 +72,7 @@ export class Pulse {
 			const s = this.settings();
 			if (!s.enabled) return;
 			const st = this.o.scan();
-			const cands = [...this.scheduled(now), ...this.feedback(), ...this.watch(now, st, s)].filter((c) => !this.ledger.fired.includes(c.key));
+			const cands = [...this.scheduled(now), ...this.watch(now, st, s)].filter((c) => !this.ledger.fired.includes(c.key));
 			if (!cands.length) return;
 
 			const urgent = cands.some((c) => c.urgent);
@@ -203,54 +202,6 @@ export class Pulse {
 					text: `「${run.task}」に約 ${mins} 分いるが、ノートが進んでいない。skill の「ストッパー」に従う`,
 				});
 			}
-		}
-		return out;
-	}
-
-	/** 壁打ちからのフィードバック（state/buddy/feedback-*.json）。時間帯に関係なく届ける。severity 高はすぐ */
-	private feedback(): Candidate[] {
-		const dir = join(this.o.managerDir, "state", "buddy");
-		if (!existsSync(dir)) return [];
-		const out: Candidate[] = [];
-		const log = join(dir, "log.jsonl");
-		for (const f of readdirSync(dir).filter((x) => /^feedback-.*\.json$/.test(x)).sort()) {
-			const p = join(dir, f);
-			let raw = "";
-			let v: { kind?: string; summary?: string; task?: string; severity?: string } = {};
-			try {
-				raw = readFileSync(p, "utf-8");
-				v = JSON.parse(raw);
-			} catch {
-				// 書きかけかもしれない。1 分たっても読めなければ記録に移して捨てる
-				try {
-					if (Date.now() - statSync(p).mtimeMs > 60_000) {
-						appendFileSync(log, `${JSON.stringify({ file: f, at: new Date().toISOString(), error: "読めない", raw: raw.slice(0, 500) })}\n`);
-						rmSync(p, { force: true });
-					}
-				} catch {
-					// 消えていた
-				}
-				continue;
-			}
-			if (!v.summary) {
-				appendFileSync(log, `${JSON.stringify({ file: f, at: new Date().toISOString(), error: "summary がない", ...v })}\n`);
-				rmSync(p, { force: true });
-				continue;
-			}
-			const sev = v.severity || "中";
-			out.push({
-				key: `buddy:${f}`,
-				urgent: sev === "高",
-				text: `壁打ちから [${v.kind || "その他"}/${sev}] ${v.summary}（${v.task || "タスクなし"}）。skill の「壁打ちからのフィードバック」に従う`,
-				done: () => {
-					try {
-						mkdirSync(dir, { recursive: true });
-						appendFileSync(log, `${JSON.stringify({ file: f, at: new Date().toISOString(), ...v })}\n`);
-					} finally {
-						rmSync(p, { force: true });
-					}
-				},
-			});
 		}
 		return out;
 	}

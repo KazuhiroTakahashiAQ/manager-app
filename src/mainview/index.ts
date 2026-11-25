@@ -4,7 +4,6 @@ import DOMPurify from "dompurify";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { Clawd } from "./clawd";
 import { initDrop } from "./drop";
 import { IdeaGraph, type GraphEdge, type GraphNode } from "./graph";
 import { childLabel, clampNameW, NAME_W_KEY, parseNameW } from "./wbs-name";
@@ -18,7 +17,7 @@ import { SHEET_LABEL, SHEET_TAB, type SheetState, sheetHtml, sheetZoomMessage, s
 import { NOW_LABEL, NOW_TAB, canSendReply, nowBadge, shouldRefreshNow } from "./now-tab";
 import { unansweredCount } from "../shared/now";
 import { RELOAD_KEY, decodeReloadState, encodeReloadState, pickTerm } from "./reload-state";
-import type { ActivitySpan, BuddyState, Doc, Inquiry, Item, LinkInfo, LookaheadTask, ManagerRPC, NowView, TermInfo, VaultState, WorkerInfo } from "../shared/types";
+import type { ActivitySpan, Doc, Inquiry, Item, LinkInfo, LookaheadTask, ManagerRPC, NowView, TermInfo, VaultState, WorkerInfo } from "../shared/types";
 
 // ───────── RPC ─────────
 
@@ -53,14 +52,6 @@ const rpc = Electroview.defineRPC<ManagerRPC>({
 				toast(`mgr が話しかける: ${summary}`, () => void showTerm("main"));
 			},
 			stateChanged: ({ paths }) => onStateChanged(paths),
-			buddyState: ({ state }) => {
-				buddyState = state;
-				clawd.setState(state);
-				renderBoard();
-			},
-			buddyDelta: ({ text }) => clawd.delta(text),
-			buddyReply: ({ text }) => clawd.reply(text),
-			buddySummon: () => clawd.open(),
 			notice: ({ text, action }) => {
 				toast(text, action ? () => void api.openExternal({ url: action.url }) : undefined, { label: action?.label, sticky: true });
 			},
@@ -363,7 +354,7 @@ function ideasHtml(s: VaultState): string {
 						.join("")}</div>`;
 				})
 				.join("")
-		: `<p class="none">まだない。思いつきは mgr・sub mgr・壁打ちのどこで話しても、ここに積まれる</p>`;
+		: `<p class="none">まだない。思いつきは mgr・sub mgr のどこで話しても、ここに積まれる</p>`;
 	const graphMode = ideasView === "graph";
 	return `<section class="ideas ${foldCls("ideas")}" data-key="ideas">
 		<h2 data-fold="ideas">アイデア<span class="n">${list.length || ""}</span><span class="note">実行は後回し。関係するタスクがあればそこに紐づける</span>
@@ -539,14 +530,6 @@ function agentsHtml(s: VaultState): string {
 			state: termState(subs),
 			busy: subs.some((t) => t.active),
 			path: SKILL_PATH,
-		}),
-		row({
-			name: "Clawd くん",
-			role: "壁打ち相手（画面の上を歩く。Ctrl 2 回で呼ぶ）。気持ち・詰まり・思いつきを聞いて mgr に渡す",
-			model: "haiku",
-			state: { starting: "起動中", idle: "起動中", replying: "返事中", stopped: "停止" }[buddyState],
-			busy: buddyState === "replying",
-			path: `${buddyDir}/CLAUDE.md`,
 		}),
 	];
 
@@ -2055,13 +2038,6 @@ document.addEventListener(
 	"keydown",
 	(e) => {
 		if (!e.metaKey || e.altKey || e.ctrlKey) return;
-		// Clawd くんの吹き出しで打っているときは、その文字の大きさを変える
-		if (clawd.hasFocus && ["Minus", "Equal", "Digit0"].includes(e.code)) {
-			clawd.setFont(e.code === "Digit0" ? "reset" : e.code === "Equal" || e.shiftKey ? 1 : -1);
-			e.preventDefault();
-			e.stopPropagation();
-			return;
-		}
 		const board = lastArea === "board";
 		// シートタブを見ているときは、盤面ではなくシートの文字を拡縮する（ハブ側が倍率を持つ。iframe にフォーカスがあるときはハブ側のキー処理が受ける）
 		const sheetStep = sheetZoomStep(e);
@@ -2255,56 +2231,14 @@ function toast(text: string, action?: () => void, opts: { label?: string; sticky
 	toastTimer = opts.sticky ? null : setTimeout(() => (toastEl.hidden = true), 6000);
 }
 
-// ───────── 壁打ち相手 Clawd くん（画面の上を歩く。Ctrl の 2 連打で呼ぶ） ─────────
+// ───────── ファイル・パス・テキストのドロップ（ターミナルに Terminal.app と同じくエスケープしたパスを渡す） ─────────
 
-let buddyState: BuddyState = "starting";
-let buddyDir = "buddy";
-const clawd = new Clawd((text) => void api.buddySend({ text }), { load, save: store });
-
-// ファイル・パス・テキストのドロップ（ターミナルには Terminal.app と同じくエスケープしたパスを、Clawd くんには drops/ にコピーして渡す）
 initDrop({
 	api,
 	dock: document.querySelector<HTMLElement>(".dock")!,
-	clawdZones: () => clawd.dropZones,
 	paste,
-	insertClawd: (text) => clawd.insert(text),
 	toast: (text) => toast(text),
 });
-
-// アプリが前面のときは、ここでも Ctrl の 2 連打を見る（外ではヘルパーが見る。両方来ても開くだけ）
-{
-	let downAt = 0;
-	let alone = false;
-	let lastTap = 0;
-	document.addEventListener(
-		"keydown",
-		(e) => {
-			if (e.key === "Control" && !e.shiftKey && !e.altKey && !e.metaKey && !e.repeat) {
-				downAt = performance.now();
-				alone = true;
-			} else {
-				alone = false;
-				lastTap = 0;
-			}
-		},
-		true,
-	);
-	document.addEventListener(
-		"keyup",
-		(e) => {
-			if (e.key !== "Control") return;
-			const now = performance.now();
-			if (alone && now - downAt <= 300) {
-				if (lastTap && now - lastTap <= 600) {
-					lastTap = 0;
-					clawd.open();
-				} else lastTap = now;
-			} else lastTap = 0;
-			alone = false;
-		},
-		true,
-	);
-}
 
 // ───────── ウィンドウが前面か（前面でなければ声かけを macOS の通知でも出す） ─────────
 
@@ -2347,11 +2281,6 @@ async function onStateChanged(paths: string[]) {
 	trackBusy();
 	workers = await api.workers({});
 	links = await api.links({});
-	const bi = await api.buddyInfo({});
-	buddyState = bi.state;
-	buddyDir = bi.dir.replace(/^\/Users\/[^/]+/, "~");
-	clawd.setState(bi.state);
-	clawd.setHistory(bi.history);
 	await refreshState();
 	renderTabs();
 	await restoreAfterReload();

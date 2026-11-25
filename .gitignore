@@ -12,8 +12,5 @@ native/bin/
 .env
 .env.*
 
-# Clawd くんの作業場: 生成物・個人データはコミットしない（CLAUDE.md は管理）
-buddy/.claude/settings.json
-buddy/memory.md
-buddy/drops/*
-!buddy/drops/.gitkeep
+# 削除した Clawd くんの作業場の残り（個人データ。アプリは使わない）
+buddy/

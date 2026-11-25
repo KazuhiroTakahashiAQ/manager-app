@@ -174,10 +174,6 @@ export type Doc = {
  */
 export type TermKind = "main" | "system" | "self" | "task";
 
-/** 壁打ち相手 Clawd くんの状態と、やり取りの 1 行 */
-export type BuddyState = "starting" | "idle" | "replying" | "stopped";
-export type BuddyLine = { role: "user" | "clawd"; text: string };
-
 export type TermInfo = {
 	id: string;
 	kind: TermKind;
@@ -224,18 +220,13 @@ export type ManagerRPC = {
 			shellOpen: { params: { id: string; cols: number; rows: number }; response: { buffer: string } };
 			openExternal: { params: { url: string }; response: { ok: boolean } };
 			openInObsidian: { params: { path: string }; response: { ok: boolean } };
-			/** Clawd くんに話す（返事は buddyDelta / buddyReply で届く） */
-			buddySend: { params: { text: string }; response: { ok: boolean } };
-			buddyInfo: { params: {}; response: { state: BuddyState; history: BuddyLine[]; dir: string } };
 			/** ドロップされた File の絶対パス（ドラッグ用ペーストボードから。分からなければ null） */
 			dropResolve: { params: { files: { name: string; size: number }[] }; response: { paths: (string | null)[] } };
 			/** 文字で落とされたパス（~/ ・file:// も可）があるか */
 			dropCheck: { params: { paths: string[] }; response: { items: { path: string; exists: boolean; dir: boolean }[] } };
-			/** Clawd くんが読めるよう <repo>/buddy/drops/ にコピーする */
-			dropToBuddy: { params: { path: string }; response: DropResult };
 			/** パスが取れないファイルの中身を少しずつ送る（base64）。last で置いたパスが返る */
 			dropUpload: {
-				params: { upload: string; name: string; to: "term" | "buddy"; size: number; chunk: string; first: boolean; last: boolean };
+				params: { upload: string; name: string; size: number; chunk: string; first: boolean; last: boolean };
 				response: DropResult;
 			};
 		},
@@ -271,12 +262,6 @@ export type ManagerRPC = {
 			notice: { text: string; action?: { label: string; url: string } };
 			/** 短い知らせ（閉じなくても消える）。会議の自動オープンなど */
 			toast: { text: string };
-			buddyState: { state: BuddyState };
-			/** 返事の途中（ここまでの全文） */
-			buddyDelta: { text: string };
-			buddyReply: { text: string };
-			/** Ctrl の 2 連打で呼ばれた */
-			buddySummon: {};
 		}
 	>;
 };

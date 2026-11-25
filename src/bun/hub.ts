@@ -38,7 +38,7 @@ export class Hub {
 
 	constructor(private o: HubOptions) {
 		mkdirSync(o.dataDir, { recursive: true });
-		// 壁打ちは Clawd くん（buddy.ts）に移ったので、前の版のタブの記録は捨てる
+		// 種類が合わない古い記録（以前の版のタブ）は捨てる
 		for (const rec of this.load()) if (rec.kind === "main" || rec.kind === "task" || rec.kind === "system" || rec.kind === "self") this.terms.set(rec.id, this.make(rec));
 		if (!this.terms.has("main")) this.terms.set("main", this.make(newRecord("main", "main", "mgr", null, o.today())));
 		// システム改修 sub mgr のタブは常に置く（claude はタブを開くか、to: system のメッセージが届いたときに立ち上がる）。

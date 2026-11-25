@@ -1,4 +1,4 @@
-// Ctrl の 2 連打で Clawd くんを呼ぶ。Swift の常駐ヘルパー（native/hotkey.swift）を立ち上げ、"summon" の行を受ける。
+// Ctrl の 2 連打でアプリを前に出す。Swift の常駐ヘルパー（native/hotkey.swift）を立ち上げ、"summon" の行を受ける。
 // ほかのアプリが前面でも効く（NSEvent のグローバル監視。アクセシビリティの権限が要る）。
 
 import { ensureNative } from "./native";

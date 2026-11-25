@@ -21,7 +21,7 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 - **先読み** — （夜の下調べは廃止。ファイルがあれば表示するだけ）`state/plan/lookahead.json` から、着手の準備の行の下に推奨開始・準備の期限・工数を、重いタスクには「絞る案」を添える。WBS では推奨開始日に小さな三角（重いものは朱）を出す。
 - **シートタブ** — 「今」「README」と並ぶ固定タブ「シート」。sheet-preview のハブ（`http://localhost:8765/`）を iframe（sandbox は allow-scripts / same-origin / forms / modals / popups）で出す読み取りタブ。ハブはアプリ起動時に `src/bun/sheethub.ts` が自動起動する（`GET 127.0.0.1:8765/api/ping` が `app: "sheet-preview"` ならそのまま、応答なしなら `node ~/.claude/skills/sheet-preview/scripts/serve.ts` を detached で起動、serve.ts が無ければ起動せず案内、8765 が別プロセスなら起動せず「別プロセスで使用中」を案内。失敗はログのみ）。止めるには `src/bun/index.ts` の `void ensureHub(hubDeps);` を消して再ビルド、起動済みの node は `pkill -f sheet-preview/scripts/serve.ts`。開くたび（と画面が再び見えたとき）に `/api/ping` で（bun 側の RPC `sheetHub` 経由）生きているか確かめ、未起動なら iframe を出さずに起動コマンドと「再確認」ボタンを出す。シートタブを見ているあいだの ⌘- / ⌘⇧-（⌘= でも）/ ⌘0（既定の 80% に戻す）は盤面ではなくシートの表示倍率（60〜200%、10% 刻み。倍率はハブ側の localStorage に保存）を変える（iframe 外にフォーカスがあるときは postMessage でハブに伝える。盤面ズームは .sheet-frame の逆数 zoom で打ち消している）。`src/mainview/sheet-tab.ts`、テストあり。
 - **アイデアのグラフ** — アイデア欄の「一覧 / グラフ」で切り替える。ノートのタブの並びの「アイデアのグラフ」（またはアイデア欄の「大きく開く」）で、タブいっぱいに開く。ノードはアイデア（丸。新規 > 温め中 > タスク化 > 見送り の順に薄くなる）、紐づくタスクとその親（四角）、目標（ひし形。`goals.md` の「## 四半期目標」の項目と、アイデアの `goal`）、PJ（輪。`project`）。エッジはアイデア→タスク / 目標 / PJ、タスク→親 / PJ。外部ライブラリなしの canvas と簡単な力学配置（反発・ばね・中心への引力）。ノードのドラッグで動かす、ホイールで拡大縮小、背景のドラッグで移動、ダブルクリックで全体を収める、ホバーで隣だけ強調して名前を出す、押すとノートを開く。`ideas/`・`tasks/` が変わると描き直し、残ったノードの位置は保つ。
-- **エージェント** — どんなエージェントがいるかの一覧。対話（mgr / sub mgr（開いているタブの数とタスク名）/ Clawd くん。役割・モデル・状態）、worker（`Manager/.claude/agents/*.md` の name・description の先頭 1 文・model、`tools` に Write / Edit / Bash がなければ「読むだけ」。いま動いている数）、定期実行（`jobs/*.md` の時刻・曜日・model・前回の結果。無効は薄く）、アプリの見張り（声かけ・活動の記録の有効 / 無効）。押すと定義ファイル（mgr・sub mgr は skill `manager-app`、Clawd くんは `buddy/CLAUDE.md`、見張りは `settings/manager-app.md`）を開く。
+- **エージェント** — どんなエージェントがいるかの一覧。対話（mgr / sub mgr（開いているタブの数とタスク名）。役割・モデル・状態）、worker（`Manager/.claude/agents/*.md` の name・description の先頭 1 文・model、`tools` に Write / Edit / Bash がなければ「読むだけ」。いま動いている数）、定期実行（`jobs/*.md` の時刻・曜日・model・前回の結果。無効は薄く）、アプリの見張り（声かけ・活動の記録の有効 / 無効）。押すと定義ファイル（mgr・sub mgr は skill `manager-app`、Clawd くんは `buddy/CLAUDE.md`、見張りは `settings/manager-app.md`）を開く。
 - **色分け（大分類と小分類）** — `src/mainview/index.css` 末尾の `--seg-*`（大分類）と `--sub-*`（小分類）で定義（ライト値のあとにダーク値で上書き）。大分類は「カードの左の太い線 + 見出し左の形の印」。色だけに頼らず形と文字でも分かる。朱 `--shu`・緑 `--ok`・WBS 進捗線 `.pline`・予定の `--ev-*` とは別の色。
 
   | 大分類 | 色 | 印 |
@@ -103,22 +103,13 @@ mgr・sub mgr・システムは、Write ツールで `Manager/state/ui/handoff-<
 Finder のファイル（複数可）や、ほかのアプリからのパス・`file://` URL・テキストを落とせる（`src/mainview/drop.ts` / `src/bun/drop.ts`）。ドラッグ中は落とせる先がうっすら光る。ほかの場所に落としても何も起きない（webview がファイルを開かない）。
 
 - **ターミナルのカード** — Terminal.app と同じく、エスケープした絶対パスを空白区切りで、いま見ているタブに貼る（送信しない）。画像のパスも同じ（claude が画像として読む）。パスでないテキストはそのまま貼る。
-- **Clawd くん（本体・吹き出し）** — ファイルを `buddy/drops/` にコピーし、吹き出しを開いて入力欄に `ファイル: <コピーのパス>` を差し込む（送信しない）。Clawd くんは作業場の中しか読めないのでコピーして渡す（権限は広げない）。1 ファイル 10MB まで、フォルダは断る。テキストはそのまま差し込む。
 - **パスの取り方** — WKWebView はドロップされたファイルのローカルパスをページに渡さない。`text/uri-list` に `file://` があればそれを使い、なければドロップの直後にドラッグ用ペーストボードを Swift のヘルパー `native/drag-paths.swift` で読んで、名前と大きさが合うパスを使う。それでも分からない（ほかのアプリから画像を直接ドラッグしたなど）ときは、画面がファイルを読んで Bun に送り、一時ファイル（ターミナルは userData の `drops/`、上限 50MB）に書いてそのパスを使う。
 - `drops/` は起動時に 7 日より古いものを消す。
 
-## 壁打ち相手 Clawd くん
+## Ctrl 2 回でアプリを前に出す
 
-ターミナルのタブではなく、アプリのウィンドウ全体の上をふよふよ歩くオレンジのドット絵の生き物（`src/mainview/clawd.ts`）。会話は `src/bun/buddy.ts`。
+**Ctrl を 2 回**（300ms 以内に Ctrl だけを 2 回）押すと、ほかのアプリが前面のとき、このアプリを前に出す。ヘルパーは `native/hotkey.swift`（NSEvent のグローバル監視）。ax-snapshot と同じく起動時に userData の `bin/` にコンパイルして常駐させる。アクセシビリティの権限が要る（ないときは 1 回だけ案内する）。
 
-- **呼び方** — 本人をクリックすると吹き出しが開き、その場で話せる（Enter で送る・Shift+Enter で改行・Esc で閉じる）。**Ctrl を 2 回**（300ms 以内に Ctrl だけを 2 回）押すと、アプリが前面なら吹き出しを開き、ほかのアプリが前面ならアプリを前に出すだけにする（もう一度 Ctrl を 2 回で吹き出し）。
-- **動き** — ゆっくりランダムに歩く・止まる・たまに向きを変える。ドラッグで好きな場所へ動かせる（位置は次回も覚えている）。吹き出し（背景 75% 透過、文字は既定 12px。入力欄にいるとき ⌘- / ⌘⇧- または ⌘= / ⌘0 で拡縮）を開いている間は歩かず、返事中は小さく揺れる。掴まれている間は目が「><」になり、手足をバタバタさせて汗を飛ばす（檻に近いほど激しく、汗の間隔も短い）。ターミナルのタブの帯の丸いボタン（↓ / →）の背後に檻があり（ボタンは手前に出る）、その上で離すと閉じ込められて中だけを歩く（掴んで外に出すと出られる。状態は次回も覚えている）。本体と吹き出し以外はクリックを透過するので、ダッシュボードやターミナルの操作を邪魔しない。
-- **キャラクター** — `buddy/CLAUDE.md`（なければアプリが作る。あれば上書きしない）。敬語を使わない、語尾に「〜なー」、考えるとき「んむむ」。知能の低い友達として、共感・相づち・ずれた感想・ゆるい問い返しで短く返す。
-- **裏の役目** — 話に 詰まり / 感情 / 脱線 / アイデア / 体調 が出たら「mgr にも言っとくなー」と言い、`Manager/state/buddy/feedback-<YYYYMMDD-HHMMSS>.json`（`{ "kind", "summary", "task", "severity" }`）を書く。アプリ（pulse）がそれを拾って mgr に合図し、`state/buddy/log.jsonl` に移す。アイデアは `Manager/ideas/<YYYYMMDD>-<短い名前>.md`（source: 壁打ち）にも保存する。
-- **セッション** — 専用の作業場 リポジトリ直下の `buddy/`（祖先に CLAUDE.md を置かない。vault の CLAUDE.md・hook を読ませない。`BUDDY_DIR` で変えられる。見つからなければ `~/Documents/work/manager-app/buddy`）で、`claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --model haiku` を 1 本持ち続け、返事をストリームで受ける。アプリを開くたびに新しい会話（新しい session id。`--resume` しない）。落ちたら新しい会話で立ち上げ直す。
-- **権限** — 書けるのは `Manager/state/buddy/feedback-*.json` と `Manager/ideas/*.md` だけ。読めるのは作業場・`Manager/tasks/`・`Manager/goals.md`。ツールは Read / Write だけ、MCP・skill なし、`--setting-sources project,local`（ユーザー設定の hook を読まない）、`--permission-mode dontAsk`（許可していないものは確認を出さずに断る）。規則は `buddy/.claude/settings.json`（アプリが毎回作り直す）に書くが、信頼していない作業場では allow が無視されるので、同じ規則を起動の引数（`--allowedTools`・`--disallowedTools`・`--add-dir`）でも渡す。`--add-dir` のため、アプリは `Manager/state/buddy/` と `Manager/ideas/` がなければ作る。
-- **10 日ごとの要約** — 起動時と 1 日 1 回、`buddy/memory.md` が 10 日より古ければ（なければ）作り直す。材料は `~/.claude/projects/<作業場>/*.jsonl` のうち過去 30 日の分で、人の発言と Clawd くんの返事の文だけ（新しい順に 3 万字まで）。haiku で「最近の気分の傾向・よく出る話題・詰まりやすいこと・覚えておくとよいこと」にまとめ、frontmatter に `period` と `updated` を書く。CLAUDE.md が `@memory.md` で読む。
-- **Ctrl 2 回のヘルパー** — `native/hotkey.swift`（NSEvent のグローバル監視）。ax-snapshot と同じく起動時に userData の `bin/` にコンパイルして常駐させる。アクセシビリティの権限が要る（ないときは 1 回だけ案内。アプリが前面のときは権限なしでも画面側で効く）。
 - 引き継ぎ・セッション間のやりとりは上の「セッション間メッセージ」。worker は mgr / sub mgr が呼ぶサブエージェント。
 - サブエージェントは `Manager/.claude/agents/`: `judge`（opus、判断）、`researcher`（sonnet、下調べ）、`builder`（opus、コーディング・資料作成）、`system-engineer`（opus、manager システム自体の改修。システムのタブが呼ぶ）。
 
@@ -136,7 +127,6 @@ Finder のファイル（複数可）や、ほかのアプリからのパス・`
   - 18:00 の終業
   - 脱線: 活動の記録で「関係ないこと」が `off_task_min`（30 分）続いたとき。なお続けば `off_task_repeat_min`（60 分）後にもう 1 回（1 区切りで最大 2 回）。すぐには言わない
   - 停滞: 同じタスクに `stuck_min`（90 分）いて、そのタスクノートがその間更新されていないとき（skill の「ストッパー」で出力を絞る提案をする）
-- 壁打ち（Clawd くん）からのフィードバック（時間帯に関係なく。severity 高はすぐ届ける）
 - 予約: mgr が `state/ui/nudge-*.json`（`{ "at": "15:00", "text": "…" }`）を書くと、その時刻に合図が届く。
 - 止まっていた間の取りこぼし（`src/bun/catchup.ts`）: アプリが落ちていた・再起動していた間に過ぎた予約は、再開後の最初の判定で 1 回だけ届ける（`HH:MM` は書いた日の時刻として扱い、10 分以上遅れたら本文に「遅れて届いた」と付ける。届けたらファイルを消し、`pulse.json` にも記録するので重複しない）。止まっていた間に届いた未読メッセージは、起動時に「既にある未読」として黙らせず、勤務時間内に通常どおり 1 回声かけする（30 秒ごとに `pulse-alive.json` へ生存時刻を書き、それより新しいものを拾う）。残った `handoff-*.json`・壁打ちの `feedback-*.json` は、起動後の最初の周回で通常どおり処理する。画面の状態は起動時に vault を読み直す（ファイル監視のイベントには頼らない）。
 - 割り込まない: claude の出力が 15 秒止まり、人が最後にキーを打ってから 30 秒たち、入力欄に打ちかけの文字がなく、アプリが 15 秒以内に何も送っておらず、許可の確認が出ていないときだけ送る（`Term.readyForNudge`。セッション間メッセージと定期の compact も同じ条件）。
@@ -216,7 +206,7 @@ pnpm build            # 配布用ビルド
 - 配布用（`pnpm build`、stable / canary）では動かない。
 - 公式の `hutch electrobun dev --watch`（hutch.config.ts の `dev`）はアプリごと作り直して再起動する。こちらを使う場合も、`watchIgnore` で `src/mainview/` の変更では再起動しないようにしてある（画面の変更は上の仕組みが反映する）。
 
-アプリ自身の状態（タブとセッション ID）は Electrobun の userData（`terms.json`。声かけの記録は `pulse.json`、定期の compact の記録は `compact.json`）に置く。Manager/ に書くのは、引き継ぎ・予約・壁打ちのファイルを読んで消す（壁打ちは `state/buddy/log.jsonl` に移す）とき、届けられなかったメッセージの `state/ui/handoff-errors.log`、`state/ui/sessions.json`、自動で開いた会議の記録（`state/ui/meeting-open.json`）、活動の記録（`state/activity/`）、Clawd くんのための `state/buddy/`・`ideas/` のフォルダ作成だけ（中身を書くのは Clawd くん）。
+アプリ自身の状態（タブとセッション ID）は Electrobun の userData（`terms.json`。声かけの記録は `pulse.json`、定期の compact の記録は `compact.json`）に置く。Manager/ に書くのは、引き継ぎ・予約のファイルを読んで消すとき、届けられなかったメッセージの `state/ui/handoff-errors.log`、`state/ui/sessions.json`、自動で開いた会議の記録（`state/ui/meeting-open.json`）、活動の記録（`state/activity/`）だけ。
 
 ## アイコン
 
@@ -247,16 +237,14 @@ iconutil -c icns icon.iconset -o /tmp/check.icns   # 検証用（不要なら省
 | `src/bun/compact.ts` | 自動 compact の env と、定期の `/compact` |
 | `src/bun/term.ts` | claude 1 セッションを PTY で動かす（アプリから送ってよいかの判定） |
 | `src/bun/vault.ts` | Manager/ の読み取り・frontmatter・準備状況・先読み・変更監視 |
-| `src/bun/pulse.ts` | 声かけ（合図の規則・壁打ちからのフィードバック） |
+| `src/bun/pulse.ts` | 声かけ（合図の規則） |
 | `src/bun/catchup.ts` | 止まっていた間の取りこぼしを拾う純関数（予約の時刻解釈・遅れの注記・未読の seed 判定） |
 | `src/bun/meeting-open.ts` / `meeting-open.test.ts` | 会議の自動オープン（開く予定の選び方・予定の古さ・二重オープン防止）とテスト |
 | `src/bun/activity.ts` | 活動の記録（前面ウィンドウを採り、haiku で分類） |
-| `src/bun/buddy.ts` / `buddy-files.ts` | Clawd くんの会話・作業場のファイル・10 日ごとの要約 |
-| `src/bun/hotkey.ts` | Ctrl の 2 連打のヘルパーを常駐させる |
+| `src/bun/hotkey.ts` | Ctrl の 2 連打のヘルパーを常駐させる（アプリを前に出す） |
 | `src/bun/native.ts` / `haiku.ts` | Swift のヘルパーのコンパイル / 1 回きりの haiku 呼び出し |
-| `src/mainview/clawd.ts` | Clawd くんの見た目・歩き・吹き出し |
 | `native/hotkey.swift` | Ctrl の 2 連打を見張るヘルパー |
-| `src/mainview/drop.ts` / `src/bun/drop.ts` | ファイル・パスのドラッグ＆ドロップ（ターミナル・Clawd くん） |
+| `src/mainview/drop.ts` / `src/bun/drop.ts` | ファイル・パスのドラッグ＆ドロップ（ターミナル） |
 | `native/drag-paths.swift` | ドラッグ用ペーストボードのファイルの絶対パスを JSON で出すヘルパー |
 | `src/bun/settings.ts` | `Manager/settings/manager-app.md` の読み取り |
 | `native/ax-snapshot.swift` | 前面ウィンドウの Accessibility ツリーの文字を JSON で出すヘルパー |

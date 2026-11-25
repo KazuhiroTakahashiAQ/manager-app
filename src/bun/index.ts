@@ -4,7 +4,6 @@ import { homedir } from "os";
 import { dirname, isAbsolute, join, resolve } from "path";
 import type { ManagerRPC } from "../shared/types";
 import { Activity } from "./activity";
-import { Buddy, defaultBuddyDir } from "./buddy";
 import { Compactor } from "./compact";
 import { startDevReload } from "./dev-reload";
 import { Drops } from "./drop";
@@ -96,14 +95,8 @@ const rpc = BrowserView.defineRPC<ManagerRPC>({
 				if (!/^(https?|slack|obsidian|mailto|x-apple\.systempreferences):/i.test(url)) return { ok: false };
 				return { ok: Utils.openExternal(url) };
 			},
-			buddySend: ({ text }) => {
-				buddy.send(text);
-				return { ok: true };
-			},
-			buddyInfo: () => ({ state: buddy.state, history: buddy.history, dir: buddyDir }),
 			dropResolve: async ({ files }) => ({ paths: await drops.resolve(files) }),
 			dropCheck: ({ paths }) => ({ items: drops.check(paths) }),
-			dropToBuddy: ({ path }) => drops.toBuddy(path),
 			dropUpload: (p) => drops.upload(p),
 			openInObsidian: ({ path }) => {
 				const abs = vault.resolve(path);
@@ -154,29 +147,14 @@ const devReload =
 			})
 		: null;
 
-// 壁打ち相手 Clawd くん（<repo>/buddy で haiku を 1 本持ち続ける。起動ごとに新しい会話）
-const buddyDir = defaultBuddyDir();
-// ターミナル・Clawd くんへのファイルのドロップ
-const drops = new Drops({ dataDir: Utils.paths.userData, buddyDir });
-const buddy = new Buddy({
-	managerDir: MANAGER_DIR,
-	buddyDir,
-	claudePath: CLAUDE_PATH,
-	dataDir: Utils.paths.userData,
-	state: (state) => rpc.send.buddyState({ state }),
-	delta: (text) => rpc.send.buddyDelta({ text }),
-	reply: (text) => rpc.send.buddyReply({ text }),
-});
+// ターミナルへのファイルのドロップ
+const drops = new Drops({ dataDir: Utils.paths.userData });
 
-// Ctrl の 2 連打: アプリが前面なら Clawd くんを呼び、ほかのアプリが前面ならアプリを前に出すだけにする
-// （前面のときは画面側でも Ctrl の 2 連打を見て吹き出しを開くので、ここで送っても開くだけ）
+// Ctrl の 2 連打: ほかのアプリが前面のとき、アプリを前に出す
 const hotkey = new Hotkey({
 	dataDir: Utils.paths.userData,
 	summon: () => {
-		if (windowFocused) {
-			rpc.send.buddySummon({});
-			return;
-		}
+		if (windowFocused) return;
 		try {
 			if (win.isMinimized()) win.unminimize();
 			win.show();
@@ -187,7 +165,7 @@ const hotkey = new Hotkey({
 	},
 	permissionNeeded: () =>
 		rpc.send.notice({
-			text: "Ctrl の 2 連打で Clawd くんを呼ぶには、アクセシビリティの権限が要る。システム設定 > プライバシーとセキュリティ > アクセシビリティで、このアプリ（開発中は pnpm dev を動かしたターミナル）を許可する（アプリが前面のときは権限なしでも効く）",
+			text: "Ctrl の 2 連打でアプリを前に出すには、アクセシビリティの権限が要る。システム設定 > プライバシーとセキュリティ > アクセシビリティで、このアプリ（開発中は pnpm dev を動かしたターミナル）を許可する",
 			action: { label: "設定を開く", url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility" },
 		}),
 });
@@ -206,7 +184,7 @@ const activity = new Activity({
 	changed: () => rpc.send.stateChanged({ paths: [] }),
 });
 
-// mgr の声かけ（予定・メッセージ・期限・人の手の止まり・活動の記録・壁打ちを見て、mgr に合図を送る）
+// mgr の声かけ（予定・メッセージ・期限・人の手の止まり・活動の記録を見て、mgr に合図を送る）
 let windowFocused = true;
 new Pulse({
 	managerDir: MANAGER_DIR,
@@ -299,7 +277,6 @@ process.on("exit", () => {
 	devReload?.dispose();
 	hub.disposeAll();
 	shells.closeAll();
-	buddy.dispose();
 	hotkey.dispose();
 });
 
