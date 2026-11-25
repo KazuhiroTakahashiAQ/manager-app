@@ -11,6 +11,7 @@ import { descendantCounts,hiddenFlags, parseCollapsed, serializeCollapsed, type 
 import { isRunActive, noteBusy, parseBusyAt, parseRunFold, reconcileRunFold, serializeBusyAt, serializeRunFold, setRunOpen } from "./runs-fold";
 import { linePosition, lineSvg, ownLinePosition, parseLineOpts, progressRatio, rolledUpPosition, type PosNode, type Pt } from "./wbs-progress";
 import { rowKindClass, runKindClass } from "./seg";
+import { VTABS_DEFAULT, clampVtabsW, parseVtabsW, tipPosition, vtabsWFromPointer } from "./vtabs";
 import { MIN_SIZE, clampRatio, gridFlex, ratioFromPointer } from "./layout";
 import { README_LABEL, README_TAB, docLabel, dynamicDocTabs, shouldRefreshReadme } from "./readme-tab";
 import { SHEET_LABEL, SHEET_TAB, type SheetState, sheetHtml, sheetZoomMessage, sheetZoomStep, shouldRefreshSheet } from "./sheet-tab";
@@ -2129,6 +2130,85 @@ splitter.addEventListener("dblclick", () => {
 });
 applyLayout();
 
+// ───────── 縦タブの幅（左端のドラッグ。localStorage の vtabsW）とツールチップ ─────────
+
+const dockEl = document.querySelector<HTMLElement>(".dock")!;
+const vtabsGrip = $("vtabs-grip");
+let vtabsW = parseVtabsW(load("vtabsW"));
+
+function applyVtabsW() {
+	vtabsW = clampVtabsW(vtabsW, dockEl.getBoundingClientRect().width);
+	appEl.style.setProperty("--vtabs-w", `${vtabsW}px`);
+}
+vtabsGrip.addEventListener("pointerdown", (e) => {
+	e.preventDefault();
+	vtabsGrip.setPointerCapture(e.pointerId);
+	appEl.classList.add("vtabs-dragging");
+	const dr = dockEl.getBoundingClientRect();
+	const move = (ev: PointerEvent) => {
+		vtabsW = vtabsWFromPointer(ev.clientX, dr.right, dr.width);
+		applyVtabsW();
+	};
+	let done = false;
+	const up = () => {
+		if (done) return;
+		done = true;
+		appEl.classList.remove("vtabs-dragging");
+		vtabsGrip.removeEventListener("pointermove", move);
+		vtabsGrip.removeEventListener("pointerup", up);
+		vtabsGrip.removeEventListener("pointercancel", up);
+		vtabsGrip.removeEventListener("lostpointercapture", up);
+		store("vtabsW", String(vtabsW));
+		requestAnimationFrame(fitCurrent);
+	};
+	vtabsGrip.addEventListener("pointermove", move);
+	vtabsGrip.addEventListener("pointerup", up);
+	vtabsGrip.addEventListener("pointercancel", up);
+	vtabsGrip.addEventListener("lostpointercapture", up);
+});
+vtabsGrip.addEventListener("dblclick", () => {
+	vtabsW = VTABS_DEFAULT;
+	store("vtabsW", String(vtabsW));
+	applyVtabsW();
+	requestAnimationFrame(fitCurrent);
+});
+applyVtabsW();
+// 窓やドックの幅が変わって上限を超えたら詰める（保存値は変えない）
+new ResizeObserver(() => {
+	if (appEl.classList.contains("vtabs-dragging")) return;
+	const w = clampVtabsW(parseVtabsW(load("vtabsW")), dockEl.getBoundingClientRect().width);
+	if (w !== vtabsW) {
+		vtabsW = w;
+		appEl.style.setProperty("--vtabs-w", `${w}px`);
+	}
+}).observe(dockEl);
+
+// ツールチップ（WKWebView の title は出にくいのでカスタム。300ms 遅延、× の上では出さない）
+const tabTip = $("tab-tip");
+let tipTimer: ReturnType<typeof setTimeout> | undefined;
+function hideTabTip() {
+	clearTimeout(tipTimer);
+	tabTip.hidden = true;
+}
+tabsEl.addEventListener("mouseover", (e) => {
+	const tab = (e.target as HTMLElement).closest<HTMLElement>(".tab");
+	hideTabTip();
+	if (!tab || (e.target as HTMLElement).closest(".x") || appEl.classList.contains("vtabs-dragging")) return;
+	tipTimer = setTimeout(() => {
+		if (!tab.isConnected) return;
+		const title = tab.dataset.tipTitle ?? "";
+		const sub = tab.dataset.tipSub ?? "";
+		tabTip.innerHTML = `<div class="tt-title">${esc(title)}</div>${sub && sub !== title ? `<div class="tt-sub">${esc(sub)}</div>` : ""}`;
+		tabTip.hidden = false;
+		const p = tipPosition(tab.getBoundingClientRect(), { w: tabTip.offsetWidth, h: tabTip.offsetHeight }, { w: window.innerWidth, h: window.innerHeight });
+		tabTip.style.left = `${p.left}px`;
+		tabTip.style.top = `${p.top}px`;
+	}, 300);
+});
+tabsEl.addEventListener("mouseleave", hideTabTip);
+tabsEl.addEventListener("pointerdown", hideTabTip);
+tabsEl.addEventListener("scroll", hideTabTip);
+
 function onTerms(list: TermInfo[]) {
 	terms = list;
 	trackBusy();
@@ -2161,7 +2241,7 @@ function renderTabs() {
 			const close = t.kind === "task" ? `<span class="x" data-close="${esc(t.id)}" title="sub mgr を閉じる（タスクノートは残る）">×</span>` : "";
 			const tip = t.taskPath ?? (t.kind === "system" ? "システム改修 sub mgr（manager システム自体の改修。日をまたいでも同じ会話）" : t.kind === "self" ? "自己改善 sub mgr（self impl mgr。eod 処理・retro・改善提案。日をまたいでも同じ会話）" : "mgr（人の窓口とルーティング）");
 			const badge = t.id === currentId ? "" : workerBadge(t.id, now);
-			return `<button class="tab" type="button" data-term="${esc(t.id)}" aria-current="${t.id === currentId}" title="${esc(tip)}">${mk}<span class="tx"><span class="role">${ROLE[t.kind]}</span>${t.kind === "task" ? `<span class="label">${esc(t.title)}</span>` : ""}</span>${badge}${close}</button>`;
+			return `<button class="tab" type="button" data-term="${esc(t.id)}" aria-current="${t.id === currentId}" data-tip-title="${esc(t.kind === "task" ? t.title : ROLE[t.kind])}" data-tip-sub="${esc(tip)}">${mk}<span class="tx"><span class="role">${ROLE[t.kind]}</span>${t.kind === "task" ? `<span class="label">${esc(t.title)}</span>` : ""}</span>${badge}${close}</button>`;
 		})
 		.join("");
 	tabsEl.scrollTop = keepTop;

@@ -706,7 +706,7 @@ button.side:hover {
 .dock {
 	display: grid;
 	/* 左: ターミナル本体、右: 縦タブ列（下配置でも常に右） */
-	grid-template-columns: minmax(0, 1fr) 160px;
+	grid-template-columns: minmax(0, 1fr) var(--vtabs-w, 200px);
 	grid-template-rows: auto auto minmax(0, 1fr) auto;
 	min-height: 0;
 	min-width: 0;
@@ -2927,4 +2927,61 @@ body.dnd-active .dock {
 	width: 2px;
 	left: 2px;
 	background: var(--focus);
+}
+
+/* 縦タブの幅のつまみ（縦タブの左端）。ドラッグで幅を変え、ダブルクリックで既定に戻す */
+.vtabs-grip {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: calc(var(--vtabs-w, 200px) - 3px);
+	width: 6px;
+	cursor: col-resize;
+	z-index: 7;
+}
+.vtabs-grip::after {
+	content: "";
+	position: absolute;
+	inset: 0 2px;
+	background: transparent;
+	transition: background 0.15s;
+}
+.vtabs-grip:hover::after,
+.app.vtabs-dragging .vtabs-grip::after {
+	background: var(--graphite);
+}
+.app.vtabs-dragging {
+	cursor: col-resize;
+	user-select: none;
+}
+.app.vtabs-dragging .stack {
+	pointer-events: none;
+}
+
+/* 縦タブのツールチップ */
+.tab-tip {
+	position: fixed;
+	z-index: 60;
+	max-width: 360px;
+	padding: 6px 10px;
+	border-radius: 6px;
+	background: #0f1310;
+	color: #e6eadf;
+	border: 1px solid var(--hair, rgba(255, 255, 255, 0.12));
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+	font-size: var(--step--1);
+	line-height: 1.4;
+	pointer-events: none;
+	overflow-wrap: anywhere;
+}
+.tab-tip[hidden] {
+	display: none;
+}
+.tab-tip .tt-title {
+	font-weight: 500;
+}
+.tab-tip .tt-sub {
+	margin-top: 2px;
+	opacity: 0.7;
+	font-size: 0.9em;
 }
