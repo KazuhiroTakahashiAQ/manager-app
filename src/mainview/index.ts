@@ -11,7 +11,7 @@ import { descendantCounts,hiddenFlags, parseCollapsed, serializeCollapsed, type 
 import { isRunActive, noteBusy, parseBusyAt, parseRunFold, reconcileRunFold, serializeBusyAt, serializeRunFold, setRunOpen } from "./runs-fold";
 import { linePosition, lineSvg, ownLinePosition, parseLineOpts, progressRatio, rolledUpPosition, type PosNode, type Pt } from "./wbs-progress";
 import { rowKindClass, runKindClass } from "./seg";
-import { VTABS_DEFAULT, clampVtabsW, parseVtabsW, tipPosition, vtabsWFromPointer } from "./vtabs";
+import { VTABS_DEFAULT, WAIT_LABEL, clampVtabsW, parseVtabsW, tipPosition, vtabsWFromPointer } from "./vtabs";
 import { MIN_SIZE, clampRatio, gridFlex, ratioFromPointer } from "./layout";
 import { README_LABEL, README_TAB, docLabel, dynamicDocTabs, shouldRefreshReadme } from "./readme-tab";
 import { SHEET_LABEL, SHEET_TAB, type SheetState, sheetHtml, sheetZoomMessage, sheetZoomStep, shouldRefreshSheet } from "./sheet-tab";
@@ -2198,7 +2198,8 @@ tabsEl.addEventListener("mouseover", (e) => {
 		if (!tab.isConnected) return;
 		const title = tab.dataset.tipTitle ?? "";
 		const sub = tab.dataset.tipSub ?? "";
-		tabTip.innerHTML = `<div class="tt-title">${esc(title)}</div>${sub && sub !== title ? `<div class="tt-sub">${esc(sub)}</div>` : ""}`;
+		const wait = tab.dataset.tipWait ?? "";
+		tabTip.innerHTML = `<div class="tt-title">${esc(title)}</div>${wait ? `<div class="tt-wait">判断待ち: ${esc(wait)}</div>` : ""}${sub && sub !== title ? `<div class="tt-sub">${esc(sub)}</div>` : ""}`;
 		tabTip.hidden = false;
 		const p = tipPosition(tab.getBoundingClientRect(), { w: tabTip.offsetWidth, h: tabTip.offsetHeight }, { w: window.innerWidth, h: window.innerHeight });
 		tabTip.style.left = `${p.left}px`;
@@ -2237,11 +2238,12 @@ function renderTabs() {
 	const keepTop = tabsEl.scrollTop;
 	tabsEl.innerHTML = terms
 		.map((t) => {
+			const wait = t.waiting ? `<span class="wait" data-wait="${t.waiting}" aria-label="判断待ち">!</span>` : "";
 			const mk = t.active ? '<span class="mk busy"></span>' : t.unread ? '<span class="mk unread"></span>' : !t.running ? '<span class="mk off"></span>' : "";
 			const close = t.kind === "task" ? `<span class="x" data-close="${esc(t.id)}" title="sub mgr を閉じる（タスクノートは残る）">×</span>` : "";
 			const tip = t.taskPath ?? (t.kind === "system" ? "システム改修 sub mgr（manager システム自体の改修。日をまたいでも同じ会話）" : t.kind === "self" ? "自己改善 sub mgr（self impl mgr。eod 処理・retro・改善提案。日をまたいでも同じ会話）" : "mgr（人の窓口とルーティング）");
 			const badge = t.id === currentId ? "" : workerBadge(t.id, now);
-			return `<button class="tab" type="button" data-term="${esc(t.id)}" aria-current="${t.id === currentId}" data-tip-title="${esc(t.kind === "task" ? t.title : ROLE[t.kind])}" data-tip-sub="${esc(tip)}">${mk}<span class="tx"><span class="role">${ROLE[t.kind]}</span>${t.kind === "task" ? `<span class="label">${esc(t.title)}</span>` : ""}</span>${badge}${close}</button>`;
+			return `<button class="tab" type="button" data-term="${esc(t.id)}" aria-current="${t.id === currentId}" data-tip-title="${esc(t.kind === "task" ? t.title : ROLE[t.kind])}" data-tip-sub="${esc(tip)}" data-tip-wait="${t.waiting ? esc(WAIT_LABEL[t.waiting]) : ""}">${wait}${mk}<span class="tx"><span class="role">${ROLE[t.kind]}</span>${t.kind === "task" ? `<span class="label">${esc(t.title)}</span>` : ""}</span>${badge}${close}</button>`;
 		})
 		.join("");
 	tabsEl.scrollTop = keepTop;

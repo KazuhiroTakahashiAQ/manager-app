@@ -83,6 +83,7 @@ export class Hub {
 			running: t.running,
 			active: t.running && now - t.lastOutput < ACTIVE_MS,
 			unread: t.unread,
+			waiting: t.waiting(),
 		}));
 	}
 

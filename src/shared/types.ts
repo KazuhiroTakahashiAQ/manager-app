@@ -186,7 +186,12 @@ export type TermInfo = {
 	active: boolean;
 	/** 見ていない間に出力があった */
 	unread: boolean;
+	/** 人の判断待ち（許可確認 / 質問 / plan の承認）。ただの待機は null */
+	waiting: WaitKind | null;
 };
+
+/** 判断待ちの種類 */
+export type WaitKind = "permission" | "question" | "plan";
 
 /** ドロップされたファイルを受け取った結果（path は置いた / 見つけた絶対パス） */
 export type DropResult = { ok: boolean; path?: string; error?: string };

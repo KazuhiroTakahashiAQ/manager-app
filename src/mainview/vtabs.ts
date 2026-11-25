@@ -1,3 +1,5 @@
+import type { WaitKind } from "../shared/types";
+
 // 縦タブの幅（左端のドラッグ）とツールチップの位置の計算。DOM に触らない純関数だけを置く。
 
 export const VTABS_MIN = 120;
@@ -39,3 +41,6 @@ export function tipPosition(
 	const top = Math.max(margin, Math.min(target.top, view.h - tip.h - margin));
 	return { left, top };
 }
+
+/** 判断待ちの種類の表示名（タブのツールチップ） */
+export const WAIT_LABEL: Record<WaitKind, string> = { permission: "許可確認", question: "質問", plan: "承認" };

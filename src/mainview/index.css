@@ -803,6 +803,26 @@ button.side:hover {
 	opacity: 0.5;
 	padding: 0 2px;
 }
+.tab .wait {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	margin-right: 6px;
+	border-radius: 50%;
+	background: var(--shu);
+	color: #fff;
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 1;
+	animation: blink 1.6s ease-in-out infinite;
+}
+.tab-tip .tt-wait {
+	color: #e9886f;
+	font-weight: 600;
+}
 .tab .x:hover {
 	opacity: 1;
 }

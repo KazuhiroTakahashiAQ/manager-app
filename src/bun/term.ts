@@ -4,7 +4,8 @@
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-import type { TermKind } from "../shared/types";
+import type { TermKind, WaitKind } from "../shared/types";
+import { clearWaitingFile, detectPtyWaiting, plainTail, ptyWaiting, readWaitingFile } from "./waiting";
 
 export type TermRecord = {
 	id: string;
@@ -82,6 +83,7 @@ export class Term {
 		];
 		if (initialPrompt) args.push(initialPrompt);
 
+		clearWaitingFile(this.env.cwd, this.id);
 		this.startedAt = Date.now();
 		if (initialPrompt) this.appSentAt = this.startedAt;
 		let extra: Record<string, string> = {};
@@ -114,6 +116,7 @@ export class Term {
 		this.proc.exited.then((code) => {
 			if (gen !== this.generation) return;
 			this.proc = null;
+			clearWaitingFile(this.env.cwd, this.id);
 			// 再開できなかった（セッションが消えた等）→ 新しいセッションで立ち上げ直す
 			if (resume && code !== 0 && Date.now() - this.startedAt < 8000) {
 				this.say("前の会話を再開できなかったので、新しい会話で始める");
@@ -157,13 +160,19 @@ export class Term {
 		const now = Date.now();
 		if (now - this.lastOutput < 15_000 || now - this.userInputAt < 30_000 || this.inputDirty) return false;
 		if (now - this.appSentAt < 15_000) return false;
-		const tail = this.buffer
-			.slice(-8000)
-			.replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g, "")
-			.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
-			.replace(/\x1b./g, "")
-			.slice(-1500);
-		return !/Do you want|Esc to cancel|esc to cancel|Enter to (select|confirm)/.test(tail);
+		// pty の目印は、人の入力の有無に関わらず見る（流し込みは誤入力になりうるので保守的に）
+		return this.waiting() === null && detectPtyWaiting(plainTail(this.buffer)) === null;
+	}
+
+	/**
+	 * 人の判断待ち（許可確認・質問・plan の承認）か。hook の印（state/ui/waiting-<id>.json）を主に、pty の画面の末尾を補助に見る。
+	 * 待っている間は声かけ・引き継ぎ・compact を流し込まない（人の入力を奪う・誤入力になる）。
+	 */
+	waiting(): WaitKind | null {
+		if (!this.proc) return null;
+		const fromHook = readWaitingFile(this.env.cwd, this.id, this.rec.sessionId);
+		if (fromHook) return fromHook;
+		return ptyWaiting(plainTail(this.buffer), this.lastOutput, this.userInputAt, Date.now());
 	}
 
 	resize(cols: number, rows: number) {
@@ -178,6 +187,7 @@ export class Term {
 		this.generation++;
 		this.proc.kill();
 		this.proc = null;
+		clearWaitingFile(this.env.cwd, this.id);
 		this.env.changed(this);
 	}
 
