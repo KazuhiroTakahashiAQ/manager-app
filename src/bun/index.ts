@@ -16,7 +16,7 @@ import { LinkTracker } from "./links";
 import { MeetingOpener } from "./meeting-open";
 import { Pulse } from "./pulse";
 import { Shells } from "./shell";
-import { claudeCwd, listDir, QuickLook, resolveInput, reveal } from "./files";
+import { claudeCwd, listDir, probeTokens, QuickLook, resolveInput, reveal } from "./files";
 import { readNow, replyInquiry } from "./now";
 import { readSettings } from "./settings";
 import { defaultHubDeps, ensureHub, hubState } from "./sheethub";
@@ -59,6 +59,15 @@ const hub: Hub = new Hub({
 const shells = new Shells({ cwd: () => MANAGER_DIR, data: (id, data) => rpc.send.shellData({ id, data }) });
 
 const quickLook = new QuickLook();
+// パスのクリック用。lsof を毎回呼ばないよう、タブごとの cwd を 5 秒だけ覚える
+const cwdCache = new Map<string, { at: number; cwd: string }>();
+async function cachedCwd(id: string): Promise<string> {
+	const c = cwdCache.get(id);
+	if (c && Date.now() - c.at < 5000) return c.cwd;
+	const { cwd } = await claudeCwd(hub.get(id)?.pid ?? null, MANAGER_DIR);
+	cwdCache.set(id, { at: Date.now(), cwd });
+	return cwd;
+}
 
 const rpc = BrowserView.defineRPC<ManagerRPC>({
 	maxRequestTime: 15000,
@@ -94,6 +103,7 @@ const rpc = BrowserView.defineRPC<ManagerRPC>({
 				return { ok: true };
 			},
 			filesCwd: ({ id }) => claudeCwd(hub.get(id)?.pid ?? null, MANAGER_DIR),
+			filesProbe: async ({ id, tokens }) => ({ results: probeTokens(tokens, await cachedCwd(id)) }),
 			filesList: ({ path, hidden }) => listDir(path, hidden),
 			filesResolve: ({ input, base }) => resolveInput(input, base),
 			filesReveal: ({ path }) => ({ ok: reveal(path) }),

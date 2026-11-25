@@ -138,6 +138,7 @@ export class FileTab {
 
 	/** パス入力・外から渡された相対 / 絶対パス。ディレクトリなら入る、ファイルなら親を開いて選択 */
 	async go(input: string) {
+		if (!this.id) return;
 		const s = this.st();
 		const r = await this.api.filesResolve({ input, base: s.dir || s.cwd });
 		if (!r.ok || !r.path) {

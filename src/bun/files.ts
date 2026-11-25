@@ -4,7 +4,7 @@
 import { existsSync, readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import { dirname, isAbsolute, join, normalize, resolve } from "path";
-import type { FileEntry, FileListing, FileResolve } from "../shared/types";
+import type { FileEntry, FileListing, FileProbe, FileResolve } from "../shared/types";
 
 /** `lsof -a -p <pid> -d cwd -Fn` の出力から cwd を取り出す（n で始まる行） */
 export function parseLsofCwd(out: string): string | null {
@@ -50,6 +50,14 @@ export function resolveInput(input: string, base: string, home: string = homedir
 		return { ok: false, error: "見つからない" };
 	}
 	return { ok: true, path, dir: st.isDirectory() };
+}
+
+/** ターミナルのパス候補を cwd 起点で解決。存在しないものは null（リンクにしない） */
+export function probeTokens(tokens: string[], base: string, home: string = homedir()): (FileProbe | null)[] {
+	return tokens.slice(0, 50).map((t) => {
+		const r = resolveInput(t, base, home);
+		return r.ok && r.path ? { path: r.path, dir: r.dir === true } : null;
+	});
 }
 
 /** 1 階層のリスト。ディレクトリが先、名前順。隠しファイル（. 始まり）は hidden のときだけ */

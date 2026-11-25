@@ -86,6 +86,7 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 - 起点はそのタブの claude プロセスの cwd（`lsof -a -p <pid> -d cwd -Fn`。取れなければ `Manager/`）。File タブを開いたとき・cwd ボタン・30 秒より古いときの再表示で取り直す（常時ポーリングなし）。タブ（mgr / sub mgr）を切り替えると、そのタブの cwd に追従する。
 - パンくず（クリックで上階層）・1 階層リスト・パス入力欄（絶対 / `~` / cwd 起点の相対。なければ短くエラー）。行の操作は 開く（既定アプリ）/ Finder / パスコピー。隠しファイルは `.*` ボタンで切り替え（既定は非表示）。
 - キー: ↑↓ 選択、Enter で開く・入る、Space で `qlmanage -p`（もう一度 Space か Esc で閉じる。別タブへ移っても閉じる）、Backspace で上へ。
+- ターミナル（Claude / Shell）の出力のパス（絶対 / `~` / 相対。`path:12` は path だけで解決）は、存在するものだけ下線が出て、**Cmd+クリック**で File タブに切り替わり、該当ディレクトリ（ファイルなら親）で選択される。相対は claude の cwd 起点。検出は `src/shared/path-links.ts`、存在確認は RPC `filesProbe`（cwd は 5 秒、結果は 10 秒キャッシュ）、xterm の link provider は `src/mainview/term-links.ts`。折り返した行をまたぐパスは拾わない。
 - 読み取りと open / reveal / qlmanage だけ（削除・移動・書き込みなし）。`src/bun/files.ts`、RPC `filesCwd` / `filesList` / `filesResolve` / `filesReveal` / `filesQuickLook` / `filesQuickLookClose`、画面は `src/mainview/file-tab.ts`。
 
 - シェルを出している間にダッシュボードから「貼る」「1 行打つ」（スラッシュコマンド等）をすると、先に claude に戻してから送る。

@@ -217,6 +217,7 @@ export type TermKind = "main" | "system" | "self" | "task";
 
 export type FileEntry = { name: string; path: string; dir: boolean; size: number; mtime: number };
 export type FileListing = { ok: boolean; error?: string; path: string; parent: string | null; entries: FileEntry[] };
+export type FileProbe = { path: string; dir: boolean };
 export type FileResolve = { ok: boolean; error?: string; path?: string; dir?: boolean };
 
 export type TermInfo = {
@@ -269,6 +270,8 @@ export type ManagerRPC = {
 			/** File タブ。起点（claude の cwd。取れなければ Manager/）と、1 階層のリスト・入力の解決（読み取りのみ） */
 			filesCwd: { params: { id: string }; response: { cwd: string; live: boolean } };
 			filesList: { params: { path: string; hidden: boolean }; response: FileListing };
+			/** ターミナル出力のパス候補（cwd 起点で解決）。存在するものだけ返し、なければ null */
+			filesProbe: { params: { id: string; tokens: string[] }; response: { results: (FileProbe | null)[] } };
 			filesResolve: { params: { input: string; base: string }; response: FileResolve };
 			filesReveal: { params: { path: string }; response: { ok: boolean } };
 			/** Quick Look（qlmanage -p）。開いていれば閉じる。開いた状態を返す */

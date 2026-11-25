@@ -6,6 +6,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { initDrop } from "./drop";
 import { FileTab } from "./file-tab";
+import { registerPathLinks } from "./term-links";
 import { IdeaGraph, type GraphEdge, type GraphNode } from "./graph";
 import { PeopleTab } from "./people-tab";
 import { PEOPLE_LABEL, PEOPLE_TAB } from "./people-view";
@@ -1797,6 +1798,7 @@ function ensureTV(id: string): TV {
 	term.loadAddon(new Unicode11Addon());
 	term.unicode.activeVersion = "11";
 	term.open(el);
+	registerPathLinks(term, id, linkDeps(id));
 	term.onData((data) => post.termInput({ id, data }));
 	// Shift+Enter は改行（claude では Option+Enter と同じ ESC+CR）。
 	// xterm は keydown のあと keypress でも Enter を送るので、Shift+Enter のイベントはすべて止め、送るのは keydown の 1 回だけにする。
@@ -1858,6 +1860,7 @@ function ensureShellTV(id: string): ShellTV {
 	term.loadAddon(new Unicode11Addon());
 	term.unicode.activeVersion = "11";
 	term.open(el);
+	registerPathLinks(term, id, linkDeps(id));
 	term.onData((data) => post.shellInput({ id, data }));
 	term.attachCustomKeyEventHandler((e) => {
 		if (e.metaKey && (e.code === "Minus" || e.code === "Equal" || e.code === "Digit0" || e.code === "KeyJ")) return false;
@@ -1904,15 +1907,22 @@ async function applyMode() {
 	renderModes();
 }
 
-function setMode(mode: "claude" | "shell" | "file") {
+function setMode(mode: "claude" | "shell" | "file"): Promise<void> {
 	shellOn.delete(currentId);
 	fileOn.delete(currentId);
 	if (mode === "shell") shellOn.add(currentId);
 	if (mode === "file") fileOn.add(currentId);
-	void applyMode();
+	return applyMode();
 }
+
+/** ターミナルのパスを Cmd+クリック: File タブへ切り替え、そのディレクトリ（ファイルなら親）で選択して見せる */
+function openPathInFileTab(id: string, path: string) {
+	if (id !== currentId) return;
+	void setMode("file").then(() => fileTab.go(path));
+}
+const linkDeps = (id: string) => ({ probe: api.filesProbe, open: (p: string) => openPathInFileTab(id, p) });
 function setShell(on: boolean) {
-	setMode(on ? "shell" : "claude");
+	void setMode(on ? "shell" : "claude");
 }
 
 function renderModes() {

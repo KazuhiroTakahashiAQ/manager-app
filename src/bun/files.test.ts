@@ -90,3 +90,18 @@ describe("QuickLook", () => {
 		expect(ql.toggle("/no/such/file")).toBe(false);
 	});
 });
+
+describe("probeTokens", () => {
+	test("cwd 起点の相対・~・行番号なしの path を解決し、無いものは null", async () => {
+		const { probeTokens } = await import("./files");
+		const d = mk();
+		const r = probeTokens(["sub/c.md", "b.md", "sub", "nope.md", "~/sub"], d, d);
+		expect(r).toEqual([
+			{ path: join(d, "sub", "c.md"), dir: false },
+			{ path: join(d, "b.md"), dir: false },
+			{ path: join(d, "sub"), dir: true },
+			null,
+			{ path: join(d, "sub"), dir: true },
+		]);
+	});
+});
