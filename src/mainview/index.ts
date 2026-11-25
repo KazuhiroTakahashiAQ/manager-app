@@ -15,7 +15,7 @@ import { descendantCounts,hiddenFlags, parseCollapsed, serializeCollapsed, type 
 import { isRunActive, noteBusy, parseBusyAt, parseRunFold, reconcileRunFold, serializeBusyAt, serializeRunFold, setRunOpen } from "./runs-fold";
 import { linePosition, lineSvg, ownLinePosition, parseLineOpts, progressRatio, rolledUpPosition, type PosNode, type Pt } from "./wbs-progress";
 import { rowKindClass, runKindClass } from "./seg";
-import { tabColor } from "./tab-color";
+import { assignSlots, fixedColor, slotColor } from "./tab-color";
 import { VTABS_DEFAULT, WAIT_LABEL, clampVtabsW, parseVtabsW, tipPosition, vtabsWFromPointer } from "./vtabs";
 import { MIN_SIZE, clampRatio, gridFlex, ratioFromPointer } from "./layout";
 import { docLabel, dynamicDocTabs } from "./doc-tabs";
@@ -2279,11 +2279,26 @@ function onTerms(list: TermInfo[]) {
 	renderBoard();
 }
 
+/** タブの色。sub mgr は開いた順に空き色を割り当て、localStorage（tabSlots）に保存して再起動後も同じにする */
+function tabColors(): Map<string, string> {
+	let saved: Record<string, number> = {};
+	try {
+		const v = JSON.parse(load("tabSlots") ?? "{}");
+		if (v && typeof v === "object") saved = v;
+	} catch {
+		// 壊れていたら振り直す
+	}
+	const slots = assignSlots(terms.filter((t) => t.kind === "task").map((t) => t.id), saved);
+	if (terms.length > 0 && JSON.stringify(slots) !== JSON.stringify(saved)) store("tabSlots", JSON.stringify(slots));
+	return new Map(terms.map((t) => [t.id, t.kind === "task" ? slotColor(slots[t.id]!) : fixedColor(t.kind)]));
+}
+
 function renderTabs() {
 	const now = Date.now();
+	const colors = tabColors();
 	const keepTop = tabsEl.scrollTop;
 	const cur = terms.find((t) => t.id === currentId);
-	document.querySelector<HTMLElement>(".dock")?.style.setProperty("--tab-dock", cur ? tabColor(cur.kind, cur.taskPath ?? cur.id) : "var(--focus)");
+	document.querySelector<HTMLElement>(".dock")?.style.setProperty("--tab-dock", cur ? colors.get(cur.id)! : "var(--focus)");
 	tabsEl.innerHTML = terms
 		.map((t) => {
 			const wait = t.waiting ? `<span class="wait" data-wait="${t.waiting}" aria-label="判断待ち">!</span>` : "";
@@ -2291,7 +2306,7 @@ function renderTabs() {
 			const close = t.kind === "task" ? `<span class="x" data-close="${esc(t.id)}" title="sub mgr を閉じる（タスクノートは残る）">×</span>` : "";
 			const tip = t.taskPath ?? (t.kind === "system" ? "システム改修 sub mgr（manager システム自体の改修。日をまたいでも同じ会話）" : t.kind === "self" ? "自己改善 sub mgr（self impl mgr。eod 処理・retro・改善提案。日をまたいでも同じ会話）" : "mgr（人の窓口とルーティング）");
 			const badge = t.id === currentId ? "" : workerBadge(t.id, now);
-			return `<button class="tab" type="button" style="--tab-color:${tabColor(t.kind, t.taskPath ?? t.id)}" data-term="${esc(t.id)}" aria-current="${t.id === currentId}" data-tip-title="${esc(t.kind === "task" ? t.title : ROLE[t.kind])}" data-tip-sub="${esc(tip)}" data-tip-wait="${t.waiting ? esc(WAIT_LABEL[t.waiting]) : ""}">${wait}${mk}<span class="tx"><span class="role">${ROLE[t.kind]}</span>${t.kind === "task" ? `<span class="label">${esc(t.title)}</span>` : ""}</span>${badge}${close}</button>`;
+			return `<button class="tab" type="button" style="--tab-color:${colors.get(t.id)}" data-term="${esc(t.id)}" aria-current="${t.id === currentId}" data-tip-title="${esc(t.kind === "task" ? t.title : ROLE[t.kind])}" data-tip-sub="${esc(tip)}" data-tip-wait="${t.waiting ? esc(WAIT_LABEL[t.waiting]) : ""}">${wait}${mk}<span class="tx"><span class="role">${ROLE[t.kind]}</span>${t.kind === "task" ? `<span class="label">${esc(t.title)}</span>` : ""}</span>${badge}${close}</button>`;
 		})
 		.join("");
 	tabsEl.scrollTop = keepTop;
