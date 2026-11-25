@@ -1905,8 +1905,8 @@ function setShell(on: boolean) {
 function renderModes() {
 	const on = shellOn.has(currentId);
 	modesEl.innerHTML =
-		`<button type="button" class="mode" data-mode="claude" aria-current="${!on}" title="claude（⌘J で切り替え）">claude</button>` +
-		`<button type="button" class="mode" data-mode="shell" aria-current="${on}" title="このタブのシェル（⌘J で切り替え）">シェル</button>`;
+		`<button type="button" class="mode" data-mode="claude" aria-current="${!on}" title="Claude（⌘J で切り替え）">Claude</button>` +
+		`<button type="button" class="mode" data-mode="shell" aria-current="${on}" title="このタブの Shell（⌘J で切り替え）">Shell</button>`;
 }
 modesEl.addEventListener("click", (e) => {
 	const b = (e.target as HTMLElement).closest<HTMLElement>("[data-mode]");
