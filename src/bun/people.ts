@@ -1,11 +1,11 @@
 // memory/people/（人物ノート）と memory/pj/（プロジェクトノート）の読み取り。書式は vault の docs/schema.md
 // 「人物ノートとプロジェクトの関係者」。md が正で、BM の SQLite は読まない。
 
-import type { PersonNote, PjNote } from "../shared/types";
+import type { OrgNote, PersonNote, PjNote } from "../shared/types";
 import { parseNote } from "./vault";
 
 /** 人物ノートの relation 語彙（これ以外の行は拾わない） */
-const PERSON_REL = /^-\s+(member_of|reports_to|works_with|client_of|introduced_by)\s+\[\[(.+?)(\|.*?)?\]\]/;
+const PERSON_REL = /^-\s+(member_of|belongs_to|reports_to|works_with|client_of|introduced_by)\s+\[\[(.+?)(\|.*?)?\]\](?:\s+[—–-]+\s*(.*))?/;
 const PJ_MEMBER = /^-\s+member\s+\[\[(.+?)(?:\|.*?)?\]\](?:\s+[—–-]+\s*(.*))?$/;
 const PJ_LINK = /^-\s+(commands|reports_to|works_with)\s+\[\[(.+?)(?:\|.*?)?\]\]\s+(?:->|→)\s+\[\[(.+?)(?:\|.*?)?\]\](?:\s+[—–-]+\s*(.*))?$/;
 
@@ -34,7 +34,7 @@ export function parsePerson(path: string, text: string, mtime = 0): PersonNote {
 	const rels: PersonNote["rels"] = [];
 	for (const l of body.split("\n")) {
 		const m = PERSON_REL.exec(l.trim());
-		if (m) rels.push({ rel: m[1]!, to: target(m[2]!) });
+		if (m) rels.push({ rel: m[1]!, to: target(m[2]!), ...(m[4]?.trim() ? { note: m[4].trim() } : {}) });
 	}
 	const profile = sectionLines(body, "Observations")
 		.map((l) => l.trim())
@@ -65,4 +65,19 @@ export function parsePj(path: string, text: string, mtime = 0): PjNote | null {
 		.filter((l) => l.trim() && !l.trim().startsWith("<!--"))
 		.slice(0, 12);
 	return { path, name: nameOf(path), fm, summary, members, links, mtime };
+}
+
+/** `[[名前]]` / `[[名前|別名]]` / 素の文字列 → ノート名。空は "" */
+export function linkName(v: string | undefined): string {
+	const m = /^\s*\[\[(.+?)(?:\|.*?)?\]\]\s*$/.exec(v ?? "");
+	return target(m ? m[1]! : (v ?? ""));
+}
+
+/** type: org のノートだけ OrgNote にする。parent は `[[親]]` でも素の名前でもよい */
+export function parseOrg(path: string, text: string, mtime = 0): OrgNote | null {
+	const { fm } = parseNote(text);
+	if (fm["type"] !== "org") return null;
+	const name = nameOf(path);
+	const parent = linkName(fm["parent"]);
+	return { path, name, fm, parent: parent === name ? "" : parent, mtime };
 }

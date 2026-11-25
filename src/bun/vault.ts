@@ -3,8 +3,8 @@
 
 import { readdirSync, readFileSync, statSync, watch, existsSync } from "fs";
 import { join, relative, resolve, sep, dirname } from "path";
-import type { ActivitySpan, Doc, Frontmatter, Item, Lookahead, PersonNote, PjNote, VaultState } from "../shared/types";
-import { parsePerson, parsePj } from "./people";
+import type { ActivitySpan, Doc, Frontmatter, Item, Lookahead, OrgNote, PersonNote, PjNote, VaultState } from "../shared/types";
+import { parseOrg, parsePerson, parsePj } from "./people";
 import { readDayPlan } from "./calendar";
 
 const KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*)\s*:(.*)$/;
@@ -114,6 +114,13 @@ export class Vault {
 		return this.listRaw("memory/people").map(({ rel, text, mtime }) => parsePerson(rel, text, mtime));
 	}
 
+	/** memory/org/ のうち type: org のノート */
+	orgs(): OrgNote[] {
+		return this.listRaw("memory/org")
+			.map(({ rel, text, mtime }) => parseOrg(rel, text, mtime))
+			.filter((x): x is OrgNote => x !== null);
+	}
+
 	/** memory/pj/ のうち type: pj のノート */
 	projects(): PjNote[] {
 		return this.listRaw("memory/pj")
@@ -160,6 +167,7 @@ export class Vault {
 			docs,
 			ideas: this.list("ideas").sort((a, b) => b.name.localeCompare(a.name)),
 			people: this.people(),
+			orgs: this.orgs(),
 			projects: this.projects(),
 			agents: this.list(".claude/agents").sort((a, b) => a.name.localeCompare(b.name)),
 			research: this.list("research"),

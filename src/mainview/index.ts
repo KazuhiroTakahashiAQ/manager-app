@@ -201,7 +201,7 @@ function renderBoard() {
 
 	boardEl.innerHTML = [decideHtml(s, open), selfHtml(s), prepHtml(s, notReady), ganttHtml(s), ideasHtml(s), agentsHtml(s), lowerHtml(s)].join("");
 	mountGraph();
-	peopleTab.setData(s.people, s.projects);
+	peopleTab.setData(s.people, s.projects, s.orgs);
 	drawProgressLine();
 }
 
@@ -504,7 +504,7 @@ function openPeopleTab() {
 	readerScroll.hidden = true;
 	graphTabEl.hidden = true;
 	sheetTabEl.hidden = true;
-	if (state) peopleTab.setData(state.people, state.projects);
+	if (state) peopleTab.setData(state.people, state.projects, state.orgs);
 	peopleTab.setVisible(true);
 	readerPath.textContent = "関係者（memory/people の人物と memory/pj の関係者。グラフと表を切り替え、プロジェクトで絞る）";
 	$("talk-about").hidden = true;

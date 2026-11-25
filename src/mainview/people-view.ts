@@ -75,7 +75,7 @@ export function collectEdges(people: PersonNote[], pjs: PjNote[]): RawEdge[] {
 		for (const r of p.rels) {
 			if (r.rel === "member_of") {
 				if (pjNames.has(r.to)) put({ rel: "member_of", a: p.name, b: r.to });
-			} else if (persons.has(r.to)) put({ rel: r.rel as Rel, a: p.name, b: r.to });
+			} else if (r.rel !== "belongs_to" && persons.has(r.to)) put({ rel: r.rel as Rel, a: p.name, b: r.to });
 		}
 	}
 	for (const pj of pjs) {
@@ -302,7 +302,8 @@ export function backlogLabel(p: PersonNote): string {
 
 export const slackLabel = (p: PersonNote) => p.fm["slack_name"] || p.fm["slack_id"] || "—";
 
-export function tableRows(people: PersonNote[], pjs: PjNote[], f: Filter): PeopleRow[] {
+/** orgText: 所属の表記（組織ノートの階層 `会社 / 部 / 課` など）。なければ fm の org をそのまま */
+export function tableRows(people: PersonNote[], pjs: PjNote[], f: Filter, orgText?: (p: PersonNote) => string): PeopleRow[] {
 	const ms = membership(people, pjs);
 	const pjSel = f.pj && pjs.some((p) => p.name === f.pj) ? f.pj : "";
 	return visiblePeople(people, pjs, { ...f, pj: pjSel }).map((p) => {
@@ -312,7 +313,7 @@ export function tableRows(people: PersonNote[], pjs: PjNote[], f: Filter): Peopl
 			name: p.name,
 			path: p.path,
 			kind: p.fm["kind"] || "—",
-			org: p.fm["org"] || "—",
+			org: (orgText ? orgText(p) : p.fm["org"]) || "—",
 			role: inPj?.role || p.fm["role"] || "—",
 			slack: slackLabel(p),
 			backlog: backlogLabel(p),

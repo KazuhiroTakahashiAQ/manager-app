@@ -26,9 +26,20 @@ export type PersonNote = {
 	path: string;
 	name: string;
 	fm: Frontmatter;
-	rels: { rel: string; to: string }[];
+	/** note は `— 役職` など行末の補足（belongs_to の役職に使う） */
+	rels: { rel: string; to: string; note?: string }[];
 	/** `## Observations` の先頭の数行（プロフィールの材料） */
 	profile: string[];
+	mtime: number;
+};
+
+/** memory/org/ の組織ノート（type: org）。parent で親組織を指し、会社→部→課→グループと任意の深さでネストする */
+export type OrgNote = {
+	path: string;
+	name: string;
+	fm: Frontmatter;
+	/** 親組織の名前（ノート名）。なければ最上位 */
+	parent: string;
 	mtime: number;
 };
 
@@ -132,6 +143,8 @@ export type VaultState = {
 	ideas: Item[];
 	/** memory/people/ の人物（関係者タブ） */
 	people: PersonNote[];
+	/** memory/org/ の組織（type: org のみ） */
+	orgs: OrgNote[];
 	/** memory/pj/ のプロジェクト（type: pj のみ） */
 	projects: PjNote[];
 	/** worker の定義（.claude/agents/*.md） */
