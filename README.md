@@ -78,7 +78,7 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 
 ### ドッキングシェル（claude と切り替えるターミナル）
 
-- ターミナル枠の左上に「Claude | Shell | File」の切り替え。ふだんはシェルは隠れていて、「Shell」か **⌘J**（もう一度で戻る）で、いまの claude タブと入れ替わる形で出る。claude は裏で動き続ける。
+- ターミナル枠の左上に「Claude | Shell | File」の切り替え。ふだんはシェルは隠れていて、「Shell」か **⌘J** で、いまの claude タブと入れ替わる形で出る。⌘J は Claude → Shell → File → Claude と押すたびに次へ進む（File の入力欄にフォーカスがあっても効く。切り替え後は Shell/Claude は端末、File は一覧にフォーカス）。claude は裏で動き続ける。
 - シェルは claude タブごとに 1 つ。初めて出したときに起動する（cwd はそのタブの claude と同じ `Manager/`、`$SHELL -l`、なければ `/bin/zsh`）。タブを切り替えても生きていて、claude タブを閉じる（× / アプリ終了）と一緒に終わる。シェルで `exit` したら「Enter で再開する」と出る。画面のリロードでは、bun が持つ出力（128KB まで）を描き直す。
 - シェルの入出力は claude の入力中・出力中の判定（handoff 配信の待ち・自動 compact・声かけ）に混ざらない。claude とは別の部品（`src/bun/shell.ts`、RPC `shellOpen` / `shellInput` / `shellResize` / `shellData`）で動く。スクロールバックは 1500 行。環境変数 `MANAGER_SHELL=1` が付く。
 ### File タブ（claude の cwd 起点のファイル一覧）

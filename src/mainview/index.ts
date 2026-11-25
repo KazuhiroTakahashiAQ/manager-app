@@ -7,6 +7,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { initDrop } from "./drop";
 import { FileTab } from "./file-tab";
 import { registerPathLinks } from "./term-links";
+import { nextMode } from "./mode-cycle";
 import { IdeaGraph, type GraphEdge, type GraphNode } from "./graph";
 import { PeopleTab } from "./people-tab";
 import { PEOPLE_LABEL, PEOPLE_TAB } from "./people-view";
@@ -1930,9 +1931,9 @@ function renderModes() {
 	const on = shellOn.has(currentId);
 	const files = fileOn.has(currentId);
 	modesEl.innerHTML =
-		`<button type="button" class="mode" data-mode="claude" aria-current="${!on && !files}" title="Claude（⌘J で切り替え）">Claude</button>` +
-		`<button type="button" class="mode" data-mode="shell" aria-current="${on}" title="このタブの Shell（⌘J で切り替え）">Shell</button>` +
-		`<button type="button" class="mode" data-mode="file" aria-current="${files}" title="claude の cwd 起点のファイル一覧（Space でプレビュー）">File</button>`;
+		`<button type="button" class="mode" data-mode="claude" aria-current="${!on && !files}" title="Claude（⌘J で Claude → Shell → File の順に切り替え）">Claude</button>` +
+		`<button type="button" class="mode" data-mode="shell" aria-current="${on}" title="このタブの Shell（⌘J で次へ）">Shell</button>` +
+		`<button type="button" class="mode" data-mode="file" aria-current="${files}" title="claude の cwd 起点のファイル一覧（⌘J で次へ。Space でプレビュー）">File</button>`;
 }
 modesEl.addEventListener("click", (e) => {
 	const b = (e.target as HTMLElement).closest<HTMLElement>("[data-mode]");
@@ -2088,7 +2089,7 @@ document.addEventListener(
 		} else if (cmd && !e.shiftKey && e.code === "BracketRight") {
 			focusArea("term");
 		} else if (cmd && !e.shiftKey && e.code === "KeyJ") {
-			setShell(!shellOn.has(currentId));
+			void setMode(nextMode(fileOn.has(currentId) ? "file" : shellOn.has(currentId) ? "shell" : "claude"));
 		} else return;
 		e.preventDefault();
 		e.stopPropagation();
