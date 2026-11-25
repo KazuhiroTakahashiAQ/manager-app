@@ -37,6 +37,8 @@ export type AppSettings = {
 	meetingOpen: boolean;
 	meetingOpenBefore: number;
 	meetingOpenUnanswered: boolean;
+	/** 完了（done / dropped）した sub mgr のタブと claude を朝に閉じる */
+	closeDoneSubmgr: boolean;
 };
 
 export function readSettings(managerDir: string): AppSettings {
@@ -75,6 +77,7 @@ export function readSettings(managerDir: string): AppSettings {
 		meetingOpen: fm["meeting_open"] !== "false",
 		meetingOpenBefore: Math.min(60, Math.max(1, num("meeting_open_before_min", 5))),
 		meetingOpenUnanswered: fm["meeting_open_unanswered"] !== "false",
+		closeDoneSubmgr: fm["close_done_submgr"] !== "false",
 	};
 }
 

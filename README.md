@@ -67,7 +67,7 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 | mgr | 人の窓口とルーティング。作業は sub mgr・worker に振る | 日付が変わると新しい会話にする（タブにボタンが出る） |
 | 自己改善 | 自己改善 sub mgr = self impl mgr（固定 id `self`、タイトル「自己改善」）。自動 eod（ジョブ `eod`、毎日 3:00 に前日分を非対話で実行）と週次の自己改善（ジョブ `weekly-improve`、土日 4:00。金曜で終わる週のルールを自己判断で棚卸しして減らす方向に直し、ナレッジグラフを整える）の結果の受け取り・retro・改善。業務タスクとシステム改修は扱わない。人の判断が要るものは `messages/`（`from: self`）に起票し、終わったら mgr に `to: main` で返す | ずっと同じ会話（日替わりにしない。× はない） |
 | システム | システム改修 sub mgr（固定 id `system`、タイトル「システム改修」）。manager システム自体の改修。実作業は worker `system-engineer` に出し、終わったら mgr に `to: main` で返す | ずっと同じ会話（日替わりにしない。× はない） |
-| sub mgr | タスク 1 件の段取り。mgr が引き継ぎで立てる | × で閉じるまで（タスクノートは残る） |
+| sub mgr | タスク 1 件の段取り。mgr が引き継ぎで立てる | × で閉じるまで。タスクが done / dropped になれば朝に自動で閉じる（`close_done_submgr`。タスクノートは残る） |
 
 - 1 タブ = 1 つの claude セッション。2 回目以降は `--resume` で続きから。
 - **worker の帯** — タブの下に、いまのタブの worker を 1 行のチップ（状態の印・種類・依頼内容）で並べる。いなければ帯は出ない。作業中は青の点滅、完了は 60 秒で消える、失敗（朱）・止めた（灰）はそのタブを見るまで（最長 30 分）、止まっている（黄）は 30 分で消える。ホバーで経過時間と直近のツール。押すとそのタブに切り替え、盤面の実行状況でその worker を目立たせる。ほかのタブには「worker N」のバッジ（いちばん悪い状態の色）を出す。
@@ -154,6 +154,15 @@ Finder のファイル（複数可）や、ほかのアプリからのパス・`
    - 文脈の大きさは `~/.claude/projects/<cwd>/<session>.jsonl` の末尾 1MB で、最後の assistant 行の usage（`input_tokens + cache_read_input_tokens + cache_creation_input_tokens`）。それより後に compact の境目（`compact_boundary`）があれば、その `postTokens`。
    - 指示文: mgr は「未完了のタスクと next_action、人に確認中の事項、sub mgr に渡した依頼と返事待ちの件、決まったこと」、sub mgr は「担当タスクの完了条件・手順・決定・次の一手」、システムは「担当の改修の依頼・完了条件・手順・決定・worker に出した作業と結果・次の一手、mgr への報告待ち」、自己改善は「自動 eod の結果と未処理の提案、承認待ちの retro、人に確認中の事項、直近の改善の決定と次の一手、mgr への報告待ち」を残し、生ログ・ツール出力は捨てる。
    - 回数と最後に送った時刻は userData の `compact.json`。
+
+## 完了した sub mgr の自動クローズ（`src/bun/closer.ts`）
+
+- 日付が変わって最初の周回（アプリ起動後 20 秒、以降 60 秒ごと。朝にアプリを開いていなくても、起動後の最初の周回）で 1 日 1 回、`status` が done / dropped のタスクの sub mgr のタブを、人が × で閉じるのと同じ経路（`Hub.close` と `Shells.close`。claude の終了・タブの削除・`terms.json` と `sessions.json` の更新）で閉じる。同じタスクへの handoff（`to: tasks/<名>.md`）が来れば新しいタブ（新しいセッション）が立つ。
+- 閉じない: 固定タブ（mgr・システム改修・自己改善）、タスクノートが読めない・完了でない、子が開いている親（`parent` が自分を指す子に done / dropped でないものがある）。
+- 次の周回に回す（その日のうちは 60 秒ごとに再試行）: claude が動いていて、出力中・人が入力中（`readyForNudge` が false）か判断待ち（waiting バッジ）のタブ。
+- 疑わしいので閉じずに mgr に知らせる（1 日 1 回だけ）: `updated` が 14 日より古い / `next_action` が空、未送信の handoff（宛先か送り元がそのタスク）、未完了の messages（`task` がそのタスク）。
+- 閉じたらトースト（前面でなければ macOS 通知）と、mgr への handoff（`to: main`、`from: system`、1 行）で知らせる。何も閉じず何も疑わしくなければ何も出さない。
+- 判定は純関数 `decideClose`（`closer.test.ts`）。記録は userData の `close-done.json`。設定は `settings/manager-app.md` の `close_done_submgr`（false で止める）。
 
 ## 活動の記録（脱線・停滞の材料）
 

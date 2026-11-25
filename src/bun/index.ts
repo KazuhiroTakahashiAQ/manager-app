@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, resolve } from "path";
 import type { ManagerRPC } from "../shared/types";
 import { Activity } from "./activity";
 import { Compactor } from "./compact";
+import { DoneCloser } from "./closer";
 import { startDevReload } from "./dev-reload";
 import { Drops } from "./drop";
 import { Hotkey } from "./hotkey";
@@ -214,6 +215,32 @@ new Compactor({
 	ledgerPath: join(Utils.paths.userData, "compact.json"),
 	targets: () => hub.all(),
 	sent: (id, tokens) => console.log(`compact: ${id}（約 ${Math.round(tokens / 1000)}K トークン）`),
+});
+
+// 完了（done / dropped）した sub mgr を朝に閉じる（日付が変わって最初の周回。入力中・判断待ちは次の周回に回す）
+new DoneCloser({
+	managerDir: MANAGER_DIR,
+	ledgerPath: join(Utils.paths.userData, "close-done.json"),
+	terms: () =>
+		hub.all().map((t) => ({
+			id: t.id,
+			kind: t.rec.kind,
+			title: t.rec.title,
+			taskPath: t.rec.taskPath,
+			running: t.running,
+			ready: t.readyForNudge(),
+			waiting: t.waiting() !== null,
+		})),
+	scan: () => vault.scan(),
+	close: (id) => {
+		hub.close(id);
+		if (!hub.get(id)) shells.close(id);
+	},
+	closed: (titles) => {
+		const text = `完了した sub mgr を閉じた: ${titles.join("、")}`;
+		rpc.send.toast({ text });
+		if (!windowFocused && readSettings(MANAGER_DIR).notify) notify("sub mgr を閉じた", text);
+	},
 });
 
 /** macOS の通知。文字は引数で渡す（AppleScript に埋め込まない） */
