@@ -67,6 +67,10 @@ export class Term {
 	get running() {
 		return this.proc !== null;
 	}
+	/** claude プロセスの pid（File タブが cwd を lsof で引く） */
+	get pid(): number | null {
+		return this.proc?.pid ?? null;
+	}
 
 	/** claude を立ち上げる。initialPrompt は最初の発言として渡す（引き継ぎ用）。 */
 	start(initialPrompt?: string) {
@@ -217,6 +221,7 @@ export class Term {
 }
 
 type PtyProcess = {
+	pid?: number;
 	terminal?: { write(data: string): number; resize(cols: number, rows: number): void };
 	exited: Promise<number>;
 	kill(): void;

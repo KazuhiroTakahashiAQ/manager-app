@@ -3272,3 +3272,133 @@ body.dnd-active .dock {
 	color: var(--graphite);
 	font-variant-numeric: tabular-nums;
 }
+
+/* File タブ（dock。claude の cwd 起点の 1 階層リスト） */
+.filetab {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 6px 8px;
+	overflow: hidden;
+	outline: none;
+	font-size: 12px;
+	color: #e6eadf;
+}
+.filetab[hidden] {
+	display: none;
+}
+.ft-bar {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.ft-crumbs {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+}
+.ft-crumb {
+	padding: 1px 4px;
+	color: #a9b3a2;
+	background: none;
+	border: 0;
+	border-radius: 4px;
+	font-size: 12px;
+}
+.ft-crumb:hover {
+	color: #e6eadf;
+	background: rgba(255, 255, 255, 0.09);
+}
+.ft-crumb + .ft-crumb::before {
+	content: "/";
+	margin-right: 4px;
+	color: #5d6a58;
+}
+.ft-crumb:first-child + .ft-crumb::before {
+	content: "";
+	margin: 0;
+}
+.ft-btn {
+	padding: 1px 6px;
+	color: #a9b3a2;
+	background: none;
+	border: 1px solid #5d6a58;
+	border-radius: 4px;
+	font-size: 11px;
+}
+.ft-btn[aria-pressed="true"] {
+	color: #e6eadf;
+	background: rgba(255, 255, 255, 0.09);
+}
+.ft-input {
+	padding: 3px 6px;
+	color: inherit;
+	background: rgba(0, 0, 0, 0.25);
+	border: 1px solid #5d6a58;
+	border-radius: 4px;
+	font: inherit;
+}
+.ft-msg {
+	min-height: 0;
+	color: #a9b3a2;
+}
+.ft-msg:empty {
+	display: none;
+}
+.ft-msg[data-error="true"] {
+	color: #e8a598;
+}
+.ft-list {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+}
+.ft-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px 6px;
+	border-radius: 4px;
+	cursor: default;
+}
+.ft-row[aria-selected="true"] {
+	background: rgba(255, 255, 255, 0.12);
+}
+.ft-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.ft-size {
+	color: #8a947f;
+	font-size: 11px;
+}
+.ft-acts {
+	display: none;
+	gap: 2px;
+}
+.ft-row:hover .ft-acts,
+.ft-row[aria-selected="true"] .ft-acts {
+	display: flex;
+}
+.ft-acts button {
+	padding: 0 5px;
+	color: #a9b3a2;
+	background: none;
+	border: 1px solid #5d6a58;
+	border-radius: 4px;
+	font-size: 11px;
+}
+.ft-acts button:hover {
+	color: #e6eadf;
+}
+.ft-empty {
+	padding: 8px;
+	color: #8a947f;
+}

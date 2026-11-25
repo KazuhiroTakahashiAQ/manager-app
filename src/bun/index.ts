@@ -16,6 +16,7 @@ import { LinkTracker } from "./links";
 import { MeetingOpener } from "./meeting-open";
 import { Pulse } from "./pulse";
 import { Shells } from "./shell";
+import { claudeCwd, listDir, QuickLook, resolveInput, reveal } from "./files";
 import { readNow, replyInquiry } from "./now";
 import { readReadme } from "./readme";
 import { readSettings } from "./settings";
@@ -58,6 +59,8 @@ const hub: Hub = new Hub({
 // ドッキング式のシェル（claude タブごとに 1 つ。ボタンを押したときに初めて起動。claude 側の判定には混ぜない）
 const shells = new Shells({ cwd: () => MANAGER_DIR, data: (id, data) => rpc.send.shellData({ id, data }) });
 
+const quickLook = new QuickLook();
+
 const rpc = BrowserView.defineRPC<ManagerRPC>({
 	maxRequestTime: 15000,
 	handlers: {
@@ -90,6 +93,15 @@ const rpc = BrowserView.defineRPC<ManagerRPC>({
 			closeTerm: ({ id }) => {
 				hub.close(id);
 				if (!hub.get(id)) shells.close(id);
+				return { ok: true };
+			},
+			filesCwd: ({ id }) => claudeCwd(hub.get(id)?.pid ?? null, MANAGER_DIR),
+			filesList: ({ path, hidden }) => listDir(path, hidden),
+			filesResolve: ({ input, base }) => resolveInput(input, base),
+			filesReveal: ({ path }) => ({ ok: reveal(path) }),
+			filesQuickLook: ({ path }) => ({ open: quickLook.toggle(path) }),
+			filesQuickLookClose: () => {
+				quickLook.close();
 				return { ok: true };
 			},
 			openExternal: ({ url }) => {
@@ -304,6 +316,7 @@ process.on("exit", () => {
 	devReload?.dispose();
 	hub.disposeAll();
 	shells.closeAll();
+	quickLook.close();
 	hotkey.dispose();
 });
 

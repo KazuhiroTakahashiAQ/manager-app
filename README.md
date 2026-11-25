@@ -79,9 +79,16 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 
 ### ドッキングシェル（claude と切り替えるターミナル）
 
-- ターミナル枠の左上に「Claude | Shell」の切り替え。ふだんはシェルは隠れていて、「Shell」か **⌘J**（もう一度で戻る）で、いまの claude タブと入れ替わる形で出る。claude は裏で動き続ける。
+- ターミナル枠の左上に「Claude | Shell | File」の切り替え。ふだんはシェルは隠れていて、「Shell」か **⌘J**（もう一度で戻る）で、いまの claude タブと入れ替わる形で出る。claude は裏で動き続ける。
 - シェルは claude タブごとに 1 つ。初めて出したときに起動する（cwd はそのタブの claude と同じ `Manager/`、`$SHELL -l`、なければ `/bin/zsh`）。タブを切り替えても生きていて、claude タブを閉じる（× / アプリ終了）と一緒に終わる。シェルで `exit` したら「Enter で再開する」と出る。画面のリロードでは、bun が持つ出力（128KB まで）を描き直す。
 - シェルの入出力は claude の入力中・出力中の判定（handoff 配信の待ち・自動 compact・声かけ）に混ざらない。claude とは別の部品（`src/bun/shell.ts`、RPC `shellOpen` / `shellInput` / `shellResize` / `shellData`）で動く。スクロールバックは 1500 行。環境変数 `MANAGER_SHELL=1` が付く。
+### File タブ（claude の cwd 起点のファイル一覧）
+
+- 起点はそのタブの claude プロセスの cwd（`lsof -a -p <pid> -d cwd -Fn`。取れなければ `Manager/`）。File タブを開いたとき・cwd ボタン・30 秒より古いときの再表示で取り直す（常時ポーリングなし）。タブ（mgr / sub mgr）を切り替えると、そのタブの cwd に追従する。
+- パンくず（クリックで上階層）・1 階層リスト・パス入力欄（絶対 / `~` / cwd 起点の相対。なければ短くエラー）。行の操作は 開く（既定アプリ）/ Finder / パスコピー。隠しファイルは `.*` ボタンで切り替え（既定は非表示）。
+- キー: ↑↓ 選択、Enter で開く・入る、Space で `qlmanage -p`（もう一度 Space か Esc で閉じる。別タブへ移っても閉じる）、Backspace で上へ。
+- 読み取りと open / reveal / qlmanage だけ（削除・移動・書き込みなし）。`src/bun/files.ts`、RPC `filesCwd` / `filesList` / `filesResolve` / `filesReveal` / `filesQuickLook` / `filesQuickLookClose`、画面は `src/mainview/file-tab.ts`。
+
 - シェルを出している間にダッシュボードから「貼る」「1 行打つ」（スラッシュコマンド等）をすると、先に claude に戻してから送る。
 - 反映には再起動が要る（bun 側の変更）。テスト: `pnpm test`（`src/bun/shell.test.ts`）。
 - 無効にする・戻す: `git revert <この機能の commit>`（または `src/mainview/index.html` の `#modes` を消すと切り替えが出なくなり、シェルは一度も起動しない）。シェルを一度も出さなければプロセスは起動しない。
@@ -262,6 +269,7 @@ iconutil -c icns icon.iconset -o /tmp/check.icns   # 検証用（不要なら省
 | `native/drag-paths.swift` | ドラッグ用ペーストボードのファイルの絶対パスを JSON で出すヘルパー |
 | `src/bun/settings.ts` | `Manager/settings/manager-app.md` の読み取り |
 | `native/ax-snapshot.swift` | 前面ウィンドウの Accessibility ツリーの文字を JSON で出すヘルパー |
+| `src/bun/files.ts` / `files.test.ts` | File タブ（cwd 取得・1 階層 list・相対解決・Quick Look）とテスト |
 | `src/bun/shell.ts` / `shell.test.ts` | ドッキングシェル（claude タブごとの PTY シェル。Term とは別）とテスト |
 | `src/shared/types.ts` | RPC スキーマと共有の型 |
 | `src/mainview/` | 画面（HTML / CSS / TS、xterm.js） |

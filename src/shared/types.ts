@@ -215,6 +215,10 @@ export type Doc = {
  */
 export type TermKind = "main" | "system" | "self" | "task";
 
+export type FileEntry = { name: string; path: string; dir: boolean; size: number; mtime: number };
+export type FileListing = { ok: boolean; error?: string; path: string; parent: string | null; entries: FileEntry[] };
+export type FileResolve = { ok: boolean; error?: string; path?: string; dir?: boolean };
+
 export type TermInfo = {
 	id: string;
 	kind: TermKind;
@@ -264,6 +268,14 @@ export type ManagerRPC = {
 			closeTerm: { params: { id: string }; response: { ok: boolean } };
 			/** claude タブ id のシェルを開く（初めてなら起動。cwd は claude タブと同じ）。これまでの出力を返す */
 			shellOpen: { params: { id: string; cols: number; rows: number }; response: { buffer: string } };
+			/** File タブ。起点（claude の cwd。取れなければ Manager/）と、1 階層のリスト・入力の解決（読み取りのみ） */
+			filesCwd: { params: { id: string }; response: { cwd: string; live: boolean } };
+			filesList: { params: { path: string; hidden: boolean }; response: FileListing };
+			filesResolve: { params: { input: string; base: string }; response: FileResolve };
+			filesReveal: { params: { path: string }; response: { ok: boolean } };
+			/** Quick Look（qlmanage -p）。開いていれば閉じる。開いた状態を返す */
+			filesQuickLook: { params: { path: string }; response: { open: boolean } };
+			filesQuickLookClose: { params: {}; response: { ok: boolean } };
 			openExternal: { params: { url: string }; response: { ok: boolean } };
 			openInObsidian: { params: { path: string }; response: { ok: boolean } };
 			/** ドロップされた File の絶対パス（ドラッグ用ペーストボードから。分からなければ null） */

@@ -5,6 +5,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { initDrop } from "./drop";
+import { FileTab } from "./file-tab";
 import { IdeaGraph, type GraphEdge, type GraphNode } from "./graph";
 import { PeopleTab } from "./people-tab";
 import { PEOPLE_LABEL, PEOPLE_TAB } from "./people-view";
@@ -1831,6 +1832,12 @@ type ShellTV = { term: Terminal; fit: FitAddon; el: HTMLDivElement; opened: bool
 const shellTvs = new Map<string, ShellTV>();
 /** シェルを前に出している claude タブ id */
 const shellOn = new Set<string>();
+/** File タブを前に出している claude タブ id（起点はそのタブの claude の cwd。bun/files.ts） */
+const fileOn = new Set<string>();
+const fileEl = document.createElement("div");
+fileEl.hidden = true;
+stackEl.appendChild(fileEl);
+const fileTab = new FileTab(fileEl, api);
 
 function ensureShellTV(id: string): ShellTV {
 	let tv = shellTvs.get(id);
@@ -1872,9 +1879,14 @@ function ensureShellTV(id: string): ShellTV {
 async function applyMode() {
 	const id = currentId;
 	const on = shellOn.has(id);
-	for (const [tid, tv] of tvs) tv.el.hidden = on || tid !== id;
-	for (const [tid, tv] of shellTvs) tv.el.hidden = !on || tid !== id;
-	if (on) {
+	const files = fileOn.has(id);
+	for (const [tid, tv] of tvs) tv.el.hidden = files || on || tid !== id;
+	for (const [tid, tv] of shellTvs) tv.el.hidden = files || !on || tid !== id;
+	fileEl.hidden = !files;
+	if (!files) void fileTab.closeQuickLook();
+	if (files) {
+		await fileTab.show(id);
+	} else if (on) {
 		const tv = ensureShellTV(id);
 		tv.el.hidden = false;
 		fitCurrent();
@@ -1896,21 +1908,28 @@ async function applyMode() {
 	renderModes();
 }
 
-function setShell(on: boolean) {
-	if (on) shellOn.add(currentId);
-	else shellOn.delete(currentId);
+function setMode(mode: "claude" | "shell" | "file") {
+	shellOn.delete(currentId);
+	fileOn.delete(currentId);
+	if (mode === "shell") shellOn.add(currentId);
+	if (mode === "file") fileOn.add(currentId);
 	void applyMode();
+}
+function setShell(on: boolean) {
+	setMode(on ? "shell" : "claude");
 }
 
 function renderModes() {
 	const on = shellOn.has(currentId);
+	const files = fileOn.has(currentId);
 	modesEl.innerHTML =
-		`<button type="button" class="mode" data-mode="claude" aria-current="${!on}" title="Claude（⌘J で切り替え）">Claude</button>` +
-		`<button type="button" class="mode" data-mode="shell" aria-current="${on}" title="このタブの Shell（⌘J で切り替え）">Shell</button>`;
+		`<button type="button" class="mode" data-mode="claude" aria-current="${!on && !files}" title="Claude（⌘J で切り替え）">Claude</button>` +
+		`<button type="button" class="mode" data-mode="shell" aria-current="${on}" title="このタブの Shell（⌘J で切り替え）">Shell</button>` +
+		`<button type="button" class="mode" data-mode="file" aria-current="${files}" title="claude の cwd 起点のファイル一覧（Space でプレビュー）">File</button>`;
 }
 modesEl.addEventListener("click", (e) => {
 	const b = (e.target as HTMLElement).closest<HTMLElement>("[data-mode]");
-	if (b) setShell(b.dataset.mode === "shell");
+	if (b) setMode(b.dataset.mode as "claude" | "shell" | "file");
 });
 
 async function showTerm(id: string) {
@@ -1926,7 +1945,7 @@ async function showTerm(id: string) {
 		tv.attached = true;
 	}
 	post.termFocus({ id });
-	if (!shellOn.has(id)) tv.term.focus();
+	if (!shellOn.has(id) && !fileOn.has(id)) tv.term.focus();
 	renderTabs();
 	renderFoot();
 	renderBoard();
@@ -1938,7 +1957,7 @@ function onTermData(id: string, data: string) {
 }
 
 function paste(text: string) {
-	if (shellOn.has(currentId)) setShell(false); // claude に貼る
+	if (shellOn.has(currentId) || fileOn.has(currentId)) setShell(false); // claude に貼る
 	const tv = tvs.get(currentId);
 	if (!tv) return;
 	tv.term.paste(text);
@@ -1947,7 +1966,7 @@ function paste(text: string) {
 
 /** 1 行打って Enter（スラッシュコマンド用） */
 function typeLine(text: string) {
-	if (shellOn.has(currentId)) setShell(false);
+	if (shellOn.has(currentId) || fileOn.has(currentId)) setShell(false);
 	post.termInput({ id: currentId, data: text });
 	setTimeout(() => post.termInput({ id: currentId, data: "\r" }), 60);
 	tvs.get(currentId)?.term.focus();
@@ -2261,6 +2280,7 @@ function onTerms(list: TermInfo[]) {
 			tv.el.remove();
 			shellTvs.delete(id);
 			shellOn.delete(id);
+			fileOn.delete(id);
 		}
 	}
 	if (!terms.some((t) => t.id === currentId)) void showTerm("main");
