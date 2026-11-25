@@ -3402,3 +3402,44 @@ body.dnd-active .dock {
 	padding: 8px;
 	color: #8a947f;
 }
+
+/* ───── 縦タブとターミナルを 1 枚に見せる（Chrome のタブ風） ─────
+   ターミナル領域（.dock の左列）をアクセント色（--focus）の線で囲み、選択中のタブだけ
+   領域とつながるよう境界線を消して、タブの上・下・右も同じ線で囲む。
+   境界線は選択中でないタブ（と余白の ::after）が左端の 2px で描く。 */
+.dock::before {
+	content: "";
+	grid-column: 1;
+	grid-row: 1 / -1;
+	margin: 6px 0 6px 6px;
+	border: 2px solid var(--focus);
+	border-right: 0;
+	border-radius: 10px 0 0 10px;
+	pointer-events: none;
+	z-index: 3;
+}
+.vtabs {
+	gap: 0;
+	padding: 6px 6px 6px 0;
+	border-left: 0;
+}
+.vtabs::after {
+	content: "";
+	flex: 1 0 0;
+	background: linear-gradient(var(--focus), var(--focus)) left / 2px 100% no-repeat;
+}
+.vtabs .tab {
+	border: 2px solid transparent;
+	border-left: 0;
+	border-radius: 0;
+	padding: 4px 6px 4px 14px;
+	background: linear-gradient(var(--focus), var(--focus)) left / 2px 100% no-repeat;
+}
+.vtabs .tab[aria-current="true"] {
+	background: none;
+	border-top-color: var(--focus);
+	border-bottom-color: var(--focus);
+	border-right-color: var(--focus);
+	border-radius: 0 8px 8px 0;
+	padding-left: 14px;
+}
