@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { canSendReply, NOW_TAB, nowBadge, shouldRefreshNow } from "./now-tab";
-import { docLabel, dynamicDocTabs, README_TAB } from "./readme-tab";
+import { docLabel, dynamicDocTabs } from "./doc-tabs";
 import { decodeReloadState, encodeReloadState } from "./reload-state";
 
 describe("now-tab", () => {
@@ -12,7 +12,7 @@ describe("now-tab", () => {
 	test("shouldRefreshNow は今を見ている最中だけ", () => {
 		expect(shouldRefreshNow(NOW_TAB, true)).toBe(true);
 		expect(shouldRefreshNow(NOW_TAB, false)).toBe(false);
-		expect(shouldRefreshNow(README_TAB, true)).toBe(false);
+		expect(shouldRefreshNow("a.md", true)).toBe(false);
 		expect(shouldRefreshNow(null, true)).toBe(false);
 	});
 	test("canSendReply", () => {
@@ -20,7 +20,7 @@ describe("now-tab", () => {
 		expect(canSendReply(" はい ")).toBe(true);
 	});
 	test("固定タブは動的タブに出さず、ラベルは今", () => {
-		const tabs = [{ path: "a.md" }, { path: NOW_TAB }, { path: README_TAB }];
+		const tabs = [{ path: "a.md" }, { path: NOW_TAB }];
 		expect(dynamicDocTabs(tabs).map((t) => t.path)).toEqual(["a.md"]);
 		expect(docLabel(NOW_TAB)).toBe("今");
 	});

@@ -16,7 +16,7 @@ import { linePosition, lineSvg, ownLinePosition, parseLineOpts, progressRatio, r
 import { rowKindClass, runKindClass } from "./seg";
 import { VTABS_DEFAULT, WAIT_LABEL, clampVtabsW, parseVtabsW, tipPosition, vtabsWFromPointer } from "./vtabs";
 import { MIN_SIZE, clampRatio, gridFlex, ratioFromPointer } from "./layout";
-import { README_LABEL, README_TAB, docLabel, dynamicDocTabs, shouldRefreshReadme } from "./readme-tab";
+import { docLabel, dynamicDocTabs } from "./doc-tabs";
 import { SHEET_LABEL, SHEET_TAB, type SheetState, sheetHtml, sheetZoomMessage, sheetZoomStep, shouldRefreshSheet } from "./sheet-tab";
 import { NOW_LABEL, NOW_TAB, canSendReply, nowBadge, shouldRefreshNow } from "./now-tab";
 import { unansweredCount } from "../shared/now";
@@ -1431,9 +1431,8 @@ async function openDoc(path: string, keepScroll = false) {
 	if (path === PEOPLE_TAB) return openPeopleTab();
 	if (path === NOW_TAB) return openNow(keepScroll);
 	if (path === SHEET_TAB) return openSheet();
-	const isReadme = path === README_TAB;
-	const doc = isReadme ? await api.readReadme({}) : await api.readDoc({ path });
-	if (!doc) return toast(`開けなかった: ${isReadme ? "README.md" : path}`);
+	const doc = await api.readDoc({ path });
+	if (!doc) return toast(`開けなかった: ${path}`);
 	rememberScroll();
 	let tab = docTabs.find((t) => t.path === doc.path);
 	const reopen = !!tab;
@@ -1448,9 +1447,7 @@ async function openDoc(path: string, keepScroll = false) {
 	graphTabEl.hidden = true;
 	sheetTabEl.hidden = true;
 	peopleTab.setVisible(false);
-	$("talk-about").hidden = isReadme;
-	$("open-obsidian").hidden = isReadme;
-	readerPath.textContent = isReadme ? "README.md（manager-app、読み取り専用）" : isVaultPath(doc.path) ? doc.path : shortPath(doc.path);
+	readerPath.textContent = isVaultPath(doc.path) ? doc.path : shortPath(doc.path);
 	$("open-obsidian").textContent = isVaultPath(doc.path) ? "Obsidian で開く" : "既定のアプリで開く";
 	const today = state?.today ?? "";
 	propsEl.innerHTML = Object.entries(doc.fm)
@@ -1641,7 +1638,6 @@ function renderDocTabs() {
 	boardTabsEl.innerHTML =
 		`<button class="btab" type="button" data-btab="" aria-current="${current === null}">ダッシュボード</button>` +
 		`<button class="btab btab-now" type="button" data-btab="${NOW_TAB}" aria-current="${current?.path === NOW_TAB}" title="いま集中すること（未回答の問い合わせ件数がバッジ）">${NOW_LABEL}${nowBadgeHtml()}</button>` +
-		`<button class="btab btab-readme" type="button" data-btab="${README_TAB}" aria-current="${current?.path === README_TAB}" title="このアプリの README">${README_LABEL}</button>` +
 		`<button class="btab btab-sheet" type="button" data-btab="${SHEET_TAB}" aria-current="${current?.path === SHEET_TAB}" title="スプレッドシートのプレビュー（sheet-preview のハブ）">${SHEET_LABEL}</button>` +
 		dynamicDocTabs(docTabs)
 			.map(
@@ -2113,33 +2109,19 @@ document.addEventListener(
 	true,
 );
 
-// ───────── 配置（右 / 下）と境界のドラッグ ─────────
+// ───────── 境界のドラッグ（ターミナルは右固定） ─────────
 
 const appEl = $("app");
 const splitter = $("splitter");
-let side: "right" | "bottom" = load("termSide") === "bottom" ? "bottom" : "right";
 let ratio = Number(load("boardRatio")) || 0.7;
 
 function applyLayout() {
 	ratio = clampRatio(ratio);
-	appEl.dataset.side = side;
 	// fr の合計を 1 にすると、片方が最小幅に当たったとき余りが配られずターミナルの右に空白が出る（layout.ts）
 	const flex = gridFlex(ratio);
 	appEl.style.setProperty("--board", flex.board);
 	appEl.style.setProperty("--dock", flex.dock);
-	const toggle = $("layout-toggle");
-	const label = side === "right" ? "ターミナルを下に置く" : "ターミナルを右に置く";
-	toggle.textContent = side === "right" ? "↓" : "→";
-	toggle.title = label;
-	toggle.setAttribute("aria-label", label);
-	splitter.setAttribute("aria-orientation", side === "right" ? "vertical" : "horizontal");
 }
-
-$("layout-toggle").addEventListener("click", () => {
-	side = side === "right" ? "bottom" : "right";
-	store("termSide", side);
-	applyLayout();
-});
 
 splitter.addEventListener("pointerdown", (e) => {
 	e.preventDefault();
@@ -2148,13 +2130,11 @@ splitter.addEventListener("pointerdown", (e) => {
 	// 2 つの領域と境界が並ぶ範囲（.app の padding の内側）。盤面は zoom がかかるので盤面の矩形は使わない
 	const r = appEl.getBoundingClientRect();
 	const cs = getComputedStyle(appEl);
-	const right = side === "right";
-	const start = right ? r.left + parseFloat(cs.paddingLeft) : r.top + parseFloat(cs.paddingTop);
-	const end = right ? r.right - parseFloat(cs.paddingRight) : r.bottom - parseFloat(cs.paddingBottom);
-	const sr = splitter.getBoundingClientRect();
-	const gutter = right ? sr.width : sr.height;
+	const start = r.left + parseFloat(cs.paddingLeft);
+	const end = r.right - parseFloat(cs.paddingRight);
+	const gutter = splitter.getBoundingClientRect().width;
 	const move = (ev: PointerEvent) => {
-		ratio = ratioFromPointer(right ? ev.clientX : ev.clientY, start, end, gutter, MIN_SIZE[side]);
+		ratio = ratioFromPointer(ev.clientX, start, end, gutter, MIN_SIZE);
 		applyLayout();
 	};
 	let done = false;
@@ -2382,7 +2362,6 @@ initDrop({
 window.addEventListener("focus", () => post.windowFocus({ focused: true }));
 window.addEventListener("blur", () => post.windowFocus({ focused: false }));
 document.addEventListener("visibilitychange", () => {
-	if (shouldRefreshReadme(current?.path, document.visibilityState === "visible")) void openDoc(README_TAB, true);
 	if (shouldRefreshNow(current?.path, document.visibilityState === "visible")) void openDoc(NOW_TAB, true);
 	if (shouldRefreshSheet(current?.path, document.visibilityState === "visible")) void openDoc(SHEET_TAB);
 });

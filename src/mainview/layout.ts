@@ -5,10 +5,7 @@ export const RATIO_MIN = 0.2;
 export const RATIO_MAX = 0.85;
 
 /** 各領域の最小の大きさ（px）。index.css の grid-template の minmax の最小値と合わせる */
-export const MIN_SIZE = {
-	right: { board: 360, dock: 440 },
-	bottom: { board: 200, dock: 160 },
-} as const;
+export const MIN_SIZE = { board: 360, dock: 440 } as const;
 
 /**
  * grid の fr の値。合計を 100 にする。

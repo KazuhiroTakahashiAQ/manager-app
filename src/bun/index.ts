@@ -18,7 +18,6 @@ import { Pulse } from "./pulse";
 import { Shells } from "./shell";
 import { claudeCwd, listDir, QuickLook, resolveInput, reveal } from "./files";
 import { readNow, replyInquiry } from "./now";
-import { readReadme } from "./readme";
 import { readSettings } from "./settings";
 import { defaultHubDeps, ensureHub, hubState } from "./sheethub";
 import { projectDir, readWorkers } from "./workers";
@@ -67,7 +66,6 @@ const rpc = BrowserView.defineRPC<ManagerRPC>({
 		requests: {
 			getState: () => vault.scan(),
 			readDoc: ({ path }) => vault.read(path) ?? readOutsideMd(path),
-			readReadme: () => readReadme(),
 			sheetHub: () => hubState(hubDeps).then((state) => ({ state })),
 			now: () => readNow(MANAGER_DIR),
 			replyInquiry: ({ path, text }) => replyInquiry(MANAGER_DIR, path, text, (d) => hub.isOpen(d)),

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { isSheetHub, SHEET_TAB, shouldRefreshSheet, sheetHtml } from "./sheet-tab";
-import { dynamicDocTabs } from "./readme-tab";
+import { dynamicDocTabs } from "./doc-tabs";
 
 describe("sheet-tab", () => {
 	test("isSheetHub", () => {
