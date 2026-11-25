@@ -182,7 +182,7 @@ export function buildOrgGraph(orgs: OrgNote[], people: PersonNote[], sel: string
 		nodes.push({ id: orgId(n), kind: "project", label: n, path: o.path, shape: "diamond", fill: o.fm["side"] === "外部" ? "#d9822b" : "#2f6d8f", r: 12, always: true });
 		if (o.parent && orgNames.has(o.parent) && known.has(o.parent)) {
 			arcs.push({ from: orgId(o.parent), to: orgId(n) });
-			edges.push({ a: orgId(o.parent), b: orgId(n), arrow: true, strong: true, label: "配下" });
+			edges.push({ a: orgId(o.parent), b: orgId(n), arrow: true, strong: true, label: "配下", down: "ab" });
 		}
 	}
 	for (const n of loose) nodes.push({ id: orgId(n), kind: "project", label: n, shape: "diamond", dim: true, r: 10, always: true });
@@ -194,7 +194,7 @@ export function buildOrgGraph(orgs: OrgNote[], people: PersonNote[], sel: string
 			if (!nodes.some((x) => x.id === id)) continue;
 			if (id === main) {
 				arcs.push({ from: id, to: `p:${p.name}` });
-				edges.push({ a: id, b: `p:${p.name}`, label: a.post || "所属" });
+				edges.push({ a: id, b: `p:${p.name}`, label: a.post || "所属", down: "ab" });
 			} else edges.push({ a: id, b: `p:${p.name}`, dash: [4, 3], label: a.post ? `兼務 ${a.post}` : "兼務" });
 		}
 	}

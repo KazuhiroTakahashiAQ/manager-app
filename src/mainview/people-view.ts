@@ -268,9 +268,12 @@ export function buildGraph(people: PersonNote[], pjs: PjNote[], f: Filter): Peop
 	// プロジェクトのノートに書かれていない指揮・報告（人事上の reports_to など）は細い破線にして、階層とは区別する
 	const edges: GraphEdge[] = inSel.map((e) => {
 		const g = style(e, personId(e.a), personId(e.b));
-		return e.pj !== pjSel && (e.rel === "commands" || e.rel === "reports_to") ? { ...g, strong: false, dash: [4, 3] } : g;
+		if (e.rel !== "commands" && e.rel !== "reports_to") return g;
+		// PJ ノートの指揮・報告は階層（ホバーで全部下まで強調）。人事上のものは細い破線で、直下だけ
+		if (e.pj !== pjSel) return { ...g, strong: false, dash: [4, 3] };
+		return { ...g, down: e.rel === "commands" ? "ab" : "ba" };
 	});
-	for (const id of tops) edges.push({ a: pjId(pj.name), b: id, label: REL_LABEL.member_of });
+	for (const id of tops) edges.push({ a: pjId(pj.name), b: id, label: REL_LABEL.member_of, down: "ab" });
 	return {
 		nodes,
 		edges,

@@ -1,6 +1,6 @@
 // アイデアのグラフ（Obsidian のグラフビューのような力学配置）。外部ライブラリなしで canvas に描く。
 // - 反発（全ペア）・ばね（エッジ）・中心への引力で配置し、落ち着いたら止まる（数百ノードまで）。
-// - ノードのドラッグで移動、ホイールで拡大縮小、背景のドラッグでパン、ホバーで隣接だけ強調、クリックで開く。
+// - ノードのドラッグで移動、ホイールで拡大縮小、背景のドラッグでパン、ホバーで隣接（階層のあるグラフは全子孫まで）を強調、クリックで開く。
 // - データが変わっても、同じ id のノードは位置を保つ。
 
 type GraphNodeKind = "idea" | "task" | "goal" | "project" | "person";
@@ -40,7 +40,11 @@ export type GraphEdge = {
 	strong?: boolean;
 	/** ホバーで線のそばに出す名前 */
 	label?: string;
+	/** 階層の向き（"ab" は a が上）。ホバーで全子孫まで強調する。なければ直下（隣接）だけ */
+	down?: "ab" | "ba";
 };
+
+import { reach, type Reach } from "./graph-reach";
 
 type Sim = GraphNode & { x: number; y: number; vx: number; vy: number; fixed: boolean; deg: number };
 
@@ -65,6 +69,8 @@ export class IdeaGraph {
 	private edges: [Sim, Sim, GraphEdge][] = [];
 	private still = false;
 	private adj = new Map<string, Set<string>>();
+	private reachKey = "";
+	private reachVal: Reach<GraphEdge> | null = null;
 	private signature = "";
 	private alpha = 0;
 	private raf = 0;
@@ -110,6 +116,7 @@ export class IdeaGraph {
 		if (sig === this.signature) return;
 		const first = this.signature === "";
 		this.signature = sig;
+		this.reachKey = "";
 		const old = this.byId;
 		this.byId = new Map();
 		this.adj = new Map();
@@ -304,12 +311,12 @@ export class IdeaGraph {
 		const { x: tx, y: ty, k } = this.view;
 		c.setTransform(dpr * k, 0, 0, dpr * k, dpr * tx, dpr * ty);
 		const hv = this.hover;
-		const near = hv ? this.adj.get(hv.id) ?? new Set<string>() : null;
-		const lit = (n: Sim) => !hv || n === hv || near!.has(n.id);
+		const rc = hv ? this.reachOf(hv.id) : null;
+		const lit = (n: Sim) => !rc || rc.nodes.has(n.id);
 
 		// エッジ
 		for (const [p, q, e] of this.edges) {
-			const on = hv && (p === hv || q === hv);
+			const on = rc && rc.edges.has(e);
 			c.lineWidth = (e.strong ? 2 : 1) / k;
 			c.strokeStyle = on ? col["focus"]! : e.color || col["graphite"]!;
 			c.globalAlpha = hv ? (on ? 0.9 : 0.08) : e.strong ? 0.8 : e.arrow ? 0.6 : 0.35;
@@ -445,6 +452,15 @@ export class IdeaGraph {
 			node.fixed = true;
 			this.heat(0.3);
 		}
+	}
+
+	/** ホバー中のノードの強調範囲（直下＋階層なら全子孫）。同じノードの間は使い回す */
+	private reachOf(id: string): Reach<GraphEdge> {
+		if (!this.reachVal || this.reachKey !== id) {
+			this.reachVal = reach(id, this.edges.map((t) => t[2]));
+			this.reachKey = id;
+		}
+		return this.reachVal;
 	}
 
 	private move(e: PointerEvent) {
