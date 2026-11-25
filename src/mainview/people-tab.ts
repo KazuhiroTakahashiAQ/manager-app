@@ -25,6 +25,8 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 /** 表に出す行の上限（人物が増えても重くならないように） */
 export const TABLE_LIMIT = 300;
 
+import { closeDetail, deselect, detailVisible, initialPanes, parseOrgsOpen, type Panes, select, toggleOrgs } from "./people-panes";
+
 type Sel = { kind: "person" | "pj"; name: string } | null;
 
 type Hooks = {
@@ -49,19 +51,31 @@ export class PeopleTab {
 	private filter: Filter;
 	private sort: { key: SortKey; dir: 1 | -1 } = { key: "name", dir: 1 };
 	private sel: Sel = null;
+	private panes: Panes;
 	private graph: IdeaGraph;
 
 	constructor(private h: Hooks) {
 		this.mode = h.load("peopleMode") === "org" ? "org" : "pj";
 		this.orgSel = h.load("peopleOrg") ?? "";
+		this.panes = initialPanes(parseOrgsOpen(h.load("peopleOrgsOpen")));
 		this.view = h.load("peopleView") === "table" ? "table" : "graph";
 		this.filter = { pj: h.load("peoplePj") ?? "", retired: h.load("peopleRetired") === "1" };
 		this.el = document.createElement("div");
 		this.el.className = "reader-people";
 		this.el.hidden = true;
-		this.graph = new IdeaGraph((n) => this.pick(n));
+		this.graph = new IdeaGraph(
+			(n) => this.pick(n),
+			undefined,
+			() => this.clearSel(),
+		);
 		this.el.addEventListener("click", (e) => this.click(e));
 		this.el.addEventListener("change", (e) => this.change(e));
+		document.addEventListener("keydown", (e) => {
+			if (!this.visible || e.key !== "Escape" || !this.sel) return;
+			const el = e.target as HTMLElement | null;
+			if (el && (el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "TEXTAREA")) return;
+			this.clearSel();
+		});
 	}
 
 	/** vault の状態が来たとき（見えていなければ覚えるだけ） */
@@ -100,7 +114,7 @@ export class PeopleTab {
 			${org ? "" : `<label class="pp-f">プロジェクト <select data-pp-pj><option value="">すべて</option>${opts}</select></label>`}
 			<label class="pp-f"><input type="checkbox" data-pp-retired${this.filter.retired ? " checked" : ""}> 退役を含む</label>
 		</div>
-		<div class="pp-main">${org ? `<nav class="pp-orgs" id="pp-orgs">${this.orgTreeHtml()}</nav>` : ""}<div class="pp-view" id="pp-view"></div><aside class="pp-detail" id="pp-detail"></aside></div>`;
+		<div class="pp-main">${org ? `<nav class="pp-orgs${this.panes.orgsOpen ? "" : " collapsed"}" id="pp-orgs"><button type="button" class="pp-fold" data-pp-orgs-toggle aria-expanded="${this.panes.orgsOpen}" title="${this.panes.orgsOpen ? "組織ツリーを畳む" : "組織ツリーを開く"}">${this.panes.orgsOpen ? "‹ 組織" : "›"}</button><div class="pp-orgs-body"${this.panes.orgsOpen ? "" : " hidden"}>${this.orgTreeHtml()}</div></nav>` : ""}<div class="pp-view" id="pp-view"></div><aside class="pp-detail" id="pp-detail"></aside></div>`;
 		const host = this.el.querySelector<HTMLElement>("#pp-view")!;
 		if (graph) {
 			const g = org ? buildOrgGraph(this.orgs, this.people, this.orgSel, this.filter.retired) : buildGraph(this.people, this.pjs, this.filter);
@@ -172,7 +186,21 @@ export class PeopleTab {
 	private renderDetail() {
 		const el = this.el.querySelector<HTMLElement>("#pp-detail");
 		if (!el) return;
-		el.innerHTML = this.detailHtml();
+		const show = detailVisible(this.panes);
+		el.hidden = !show;
+		el.innerHTML = show ? `<button type="button" class="pp-fold pp-close" data-pp-detail-close title="詳細を閉じる（Esc は選択を外す）" aria-label="詳細を閉じる">閉じる ›</button>${this.detailHtml()}` : "";
+	}
+
+	private setSel(s: Sel) {
+		this.sel = s;
+		this.panes = s ? select(this.panes) : deselect(this.panes);
+	}
+
+	private clearSel() {
+		if (!this.sel) return;
+		this.setSel(null);
+		this.el.querySelectorAll("tr.sel").forEach((x) => x.classList.remove("sel"));
+		this.renderDetail();
 	}
 
 	private detailHtml(): string {
@@ -230,7 +258,7 @@ export class PeopleTab {
 	private pick(n: GraphNode) {
 		const m = /^([pj]):(.*)$/.exec(n.id);
 		if (!m) return;
-		this.sel = { kind: m[1] === "p" ? "person" : "pj", name: m[2]! };
+		this.setSel({ kind: m[1] === "p" ? "person" : "pj", name: m[2]! });
 		this.renderDetail();
 	}
 
@@ -247,6 +275,15 @@ export class PeopleTab {
 			this.mode = pm.dataset["pm"] === "org" ? "org" : "pj";
 			this.h.store("peopleMode", this.mode);
 			return this.render();
+		}
+		if (t.closest("[data-pp-orgs-toggle]")) {
+			this.panes = toggleOrgs(this.panes);
+			this.h.store("peopleOrgsOpen", this.panes.orgsOpen ? "1" : "0");
+			return this.render();
+		}
+		if (t.closest("[data-pp-detail-close]")) {
+			this.panes = closeDetail(this.panes);
+			return this.renderDetail();
 		}
 		const fold = t.closest<HTMLElement>("[data-org-fold]");
 		if (fold) {
@@ -268,19 +305,19 @@ export class PeopleTab {
 		}
 		const row = t.closest<HTMLElement>("[data-row]");
 		if (row) {
-			this.sel = { kind: "person", name: row.dataset["row"]! };
+			this.setSel({ kind: "person", name: row.dataset["row"]! });
 			this.el.querySelectorAll("tr.sel").forEach((x) => x.classList.remove("sel"));
 			row.classList.add("sel");
 			return this.renderDetail();
 		}
 		const sp = t.closest<HTMLElement>("[data-sel-person]");
 		if (sp) {
-			this.sel = { kind: "person", name: sp.dataset["selPerson"]! };
+			this.setSel({ kind: "person", name: sp.dataset["selPerson"]! });
 			return this.renderDetail();
 		}
 		const sj = t.closest<HTMLElement>("[data-sel-pj]");
 		if (sj) {
-			this.sel = { kind: "pj", name: sj.dataset["selPj"]! };
+			this.setSel({ kind: "pj", name: sj.dataset["selPj"]! });
 			return this.renderDetail();
 		}
 		const focus = t.closest<HTMLElement>("[data-pp-focus]");

@@ -84,6 +84,8 @@ export class IdeaGraph {
 	constructor(
 		private onOpen: (node: GraphNode) => void,
 		private onDragEnd: () => void = () => {},
+		/** 背景を（ドラッグせずに）クリックした */
+		private onBlank: () => void = () => {},
 	) {
 		this.el = document.createElement("div");
 		this.el.className = "igraph";
@@ -492,6 +494,7 @@ export class IdeaGraph {
 		this.drag = null;
 		if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
 		if (!d) return;
+		if (!d.node && !d.moved) this.onBlank();
 		if (d.node) {
 			d.node.fixed = false;
 			if (!d.moved) this.onOpen(d.node);

@@ -3398,3 +3398,36 @@ body.dnd-active .dock {
 	border-radius: 0 8px 8px 0;
 	padding-left: 14px;
 }
+
+/* 関係者タブ: 左（組織ツリー）・右（詳細）の開閉 */
+.pp-detail[hidden] {
+	display: none;
+}
+.pp-fold {
+	display: block;
+	margin: 0 0 6px auto;
+	padding: 2px 8px;
+	border: 1px solid var(--rule);
+	border-radius: 4px;
+	background: none;
+	color: var(--graphite);
+	font-size: 11.5px;
+	cursor: pointer;
+}
+.pp-fold:hover {
+	color: var(--ink);
+}
+.pp-orgs .pp-fold {
+	margin: 0 0 6px 0;
+}
+.pp-orgs.collapsed {
+	width: 30px;
+	padding: 8px 4px;
+	overflow: hidden;
+}
+.pp-orgs.collapsed .pp-fold {
+	margin: 0;
+	width: 22px;
+	padding: 2px 0;
+	text-align: center;
+}
