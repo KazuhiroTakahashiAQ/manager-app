@@ -3,7 +3,7 @@
 // - ノードのドラッグで移動、ホイールで拡大縮小、背景のドラッグでパン、ホバーで隣接だけ強調、クリックで開く。
 // - データが変わっても、同じ id のノードは位置を保つ。
 
-type GraphNodeKind = "idea" | "task" | "goal" | "project";
+type GraphNodeKind = "idea" | "task" | "goal" | "project" | "person";
 
 export type GraphNode = {
 	id: string;
@@ -13,11 +13,41 @@ export type GraphNode = {
 	status?: string;
 	/** クリックで開くノート（Manager/ からの相対パス）。なければ開かない */
 	path?: string;
+	/** 以下は関係者のグラフなどの見た目の上書き（なければ kind の既定） */
+	x?: number;
+	y?: number;
+	/** 塗りの色 */
+	fill?: string;
+	/** 縁取りの色 */
+	ring?: string;
+	shape?: "circle" | "square" | "diamond";
+	r?: number;
+	/** 薄く出す（退役など） */
+	dim?: boolean;
+	/** ホバーしていなくてもラベルを出す */
+	always?: boolean;
 };
 
-export type GraphEdge = { a: string; b: string };
+export type GraphEdge = {
+	a: string;
+	b: string;
+	/** b の側に矢印を付ける */
+	arrow?: boolean;
+	dash?: number[];
+	/** 色（CSS の色。なければ graphite） */
+	color?: string;
+	/** 強い線（太く濃く） */
+	strong?: boolean;
+	/** ホバーで線のそばに出す名前 */
+	label?: string;
+};
 
 type Sim = GraphNode & { x: number; y: number; vx: number; vy: number; fixed: boolean; deg: number };
+
+export type GraphOpts = {
+	/** ノードの x / y をそのまま使い、力学配置は動かさない（階層レイアウト用） */
+	fixed?: boolean;
+};
 
 const REPULSE = 2600;
 const SPRING = 0.035;
@@ -32,7 +62,8 @@ export class IdeaGraph {
 	private ctx: CanvasRenderingContext2D;
 	private nodes: Sim[] = [];
 	private byId = new Map<string, Sim>();
-	private edges: [Sim, Sim][] = [];
+	private edges: [Sim, Sim, GraphEdge][] = [];
+	private still = false;
 	private adj = new Map<string, Set<string>>();
 	private signature = "";
 	private alpha = 0;
@@ -68,9 +99,14 @@ export class IdeaGraph {
 	}
 
 	/** データを入れ替える。同じなら何もしない（揺らさない） */
-	setData(nodes: GraphNode[], edges: GraphEdge[], emptyText = "") {
+	setData(nodes: GraphNode[], edges: GraphEdge[], emptyText = "", opts: GraphOpts = {}) {
 		this.emptyText = emptyText;
-		const sig = JSON.stringify([nodes.map((n) => [n.id, n.label, n.status, n.path]), edges.map((e) => e.a + ">" + e.b)]);
+		this.still = !!opts.fixed;
+		const sig = JSON.stringify([
+			this.still,
+			nodes.map((n) => [n.id, n.label, n.status, n.path, n.x, n.y, n.fill, n.ring, n.shape, n.r, n.dim, n.always]),
+			edges.map((e) => [e.a, e.b, e.arrow, e.dash, e.color, e.strong, e.label]),
+		]);
 		if (sig === this.signature) return;
 		const first = this.signature === "";
 		this.signature = sig;
@@ -83,20 +119,24 @@ export class IdeaGraph {
 		}
 		this.nodes = nodes.map((n) => {
 			const prev = old.get(n.id);
-			const s: Sim = prev
-				? { ...n, x: prev.x, y: prev.y, vx: 0, vy: 0, fixed: false, deg: 0 }
-				: { ...n, ...this.spawnNear(n.id, old), vx: 0, vy: 0, fixed: false, deg: 0 };
+			const given = n.x !== undefined && n.y !== undefined ? { x: n.x, y: n.y } : null;
+			const s: Sim = given
+				? { ...n, ...given, vx: 0, vy: 0, fixed: false, deg: 0 }
+				: prev
+					? { ...n, x: prev.x, y: prev.y, vx: 0, vy: 0, fixed: false, deg: 0 }
+					: { ...n, ...this.spawnNear(n.id, old), vx: 0, vy: 0, fixed: false, deg: 0 };
 			this.byId.set(n.id, s);
 			return s;
 		});
 		this.edges = edges
-			.map((e) => [this.byId.get(e.a), this.byId.get(e.b)] as const)
-			.filter((p): p is [Sim, Sim] => !!p[0] && !!p[1] && p[0] !== p[1]);
+			.map((e) => [this.byId.get(e.a), this.byId.get(e.b), e] as const)
+			.filter((p): p is [Sim, Sim, GraphEdge] => !!p[0] && !!p[1] && p[0] !== p[1]);
 		for (const [a, b] of this.edges) {
 			a.deg++;
 			b.deg++;
 		}
 		if (this.hover && !this.byId.has(this.hover.id)) this.hover = null;
+		if (this.still) return this.fit();
 		this.heat(first ? 1 : 0.5);
 		if (first) {
 			// 最初は先に落ち着かせてから見せる
@@ -129,6 +169,7 @@ export class IdeaGraph {
 	}
 
 	private heat(a: number) {
+		if (this.still) return this.draw();
 		this.alpha = Math.max(this.alpha, a);
 		if (!this.raf) this.raf = requestAnimationFrame(() => this.frame());
 	}
@@ -237,6 +278,8 @@ export class IdeaGraph {
 	}
 
 	private radius(n: Sim): number {
+		if (n.r) return n.r;
+		if (n.kind === "person") return 7 + Math.min(4, n.deg * 0.5);
 		if (n.kind === "project") return 9 + Math.min(8, n.deg);
 		if (n.kind === "goal") return 8 + Math.min(6, n.deg);
 		if (n.kind === "task") return 5 + Math.min(4, n.deg * 0.5);
@@ -265,24 +308,45 @@ export class IdeaGraph {
 		const lit = (n: Sim) => !hv || n === hv || near!.has(n.id);
 
 		// エッジ
-		c.lineWidth = 1 / k;
-		for (const [p, q] of this.edges) {
+		for (const [p, q, e] of this.edges) {
 			const on = hv && (p === hv || q === hv);
-			c.strokeStyle = on ? col["focus"]! : col["graphite"]!;
-			c.globalAlpha = hv ? (on ? 0.9 : 0.08) : 0.35;
+			c.lineWidth = (e.strong ? 2 : 1) / k;
+			c.strokeStyle = on ? col["focus"]! : e.color || col["graphite"]!;
+			c.globalAlpha = hv ? (on ? 0.9 : 0.08) : e.strong ? 0.8 : e.arrow ? 0.6 : 0.35;
+			c.setLineDash((e.dash ?? []).map((v) => v / k));
+			const d = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+			const ux = (q.x - p.x) / d;
+			const uy = (q.y - p.y) / d;
+			// 矢印は b の縁で止める
+			const rb = e.arrow ? this.radius(q) + 2 / k : 0;
 			c.beginPath();
 			c.moveTo(p.x, p.y);
-			c.lineTo(q.x, q.y);
+			c.lineTo(q.x - ux * rb, q.y - uy * rb);
 			c.stroke();
+			c.setLineDash([]);
+			if (e.arrow) {
+				const L = 9 / k;
+				const tx = q.x - ux * rb;
+				const ty = q.y - uy * rb;
+				c.fillStyle = c.strokeStyle;
+				c.beginPath();
+				c.moveTo(tx, ty);
+				c.lineTo(tx - ux * L - uy * L * 0.4, ty - uy * L + ux * L * 0.4);
+				c.lineTo(tx - ux * L + uy * L * 0.4, ty - uy * L - ux * L * 0.4);
+				c.closePath();
+				c.fill();
+			}
 		}
 
-		// ノード：アイデアは丸、タスクは四角、目標はひし形、PJ は輪
+		// ノード：アイデアは丸、タスクは四角、目標はひし形、PJ は輪（shape で上書きできる）
 		for (const n of this.nodes) {
 			const r = this.radius(n);
-			c.globalAlpha = (lit(n) ? 1 : 0.15) * (n.kind === "idea" ? ideaAlpha(n.status) : n.kind === "task" && n.status === "done" ? 0.45 : 1);
+			c.globalAlpha =
+				(lit(n) ? 1 : 0.15) * (n.dim ? 0.35 : n.kind === "idea" ? ideaAlpha(n.status) : n.kind === "task" && n.status === "done" ? 0.45 : 1);
 			c.beginPath();
-			if (n.kind === "task") c.rect(n.x - r, n.y - r, r * 2, r * 2);
-			else if (n.kind === "goal") {
+			const shape = n.shape ?? (n.kind === "task" ? "square" : n.kind === "goal" ? "diamond" : "circle");
+			if (shape === "square") c.rect(n.x - r, n.y - r, r * 2, r * 2);
+			else if (shape === "diamond") {
 				c.moveTo(n.x, n.y - r);
 				c.lineTo(n.x + r, n.y);
 				c.lineTo(n.x, n.y + r);
@@ -290,14 +354,19 @@ export class IdeaGraph {
 				c.closePath();
 			} else c.arc(n.x, n.y, r, 0, Math.PI * 2);
 			if (n.kind === "project") {
-				c.fillStyle = col["paper-2"]!;
+				c.fillStyle = n.fill ?? col["paper-2"]!;
 				c.fill();
 				c.lineWidth = 2 / k;
-				c.strokeStyle = col["graphite"]!;
+				c.strokeStyle = n.ring ?? col["graphite"]!;
 				c.stroke();
 			} else {
-				c.fillStyle = n.kind === "idea" ? col["focus"]! : col["ink"]!;
+				c.fillStyle = n.fill ?? (n.kind === "idea" ? col["focus"]! : col["ink"]!);
 				c.fill();
+				if (n.ring) {
+					c.lineWidth = 2.5 / k;
+					c.strokeStyle = n.ring;
+					c.stroke();
+				}
 				if (n === hv) {
 					c.lineWidth = 2 / k;
 					c.strokeStyle = col["paper"]!;
@@ -312,16 +381,31 @@ export class IdeaGraph {
 		c.textAlign = "center";
 		c.textBaseline = "top";
 		for (const n of this.nodes) {
-			const show = hv ? lit(n) : n.kind === "goal" || n.kind === "project" || k >= 1.4;
+			const show = hv ? lit(n) : n.always || n.kind === "goal" || n.kind === "project" || k >= 1.4;
 			if (!show) continue;
 			const label = n.label.length > 24 ? `${n.label.slice(0, 23)}…` : n.label;
 			const y = n.y + this.radius(n) + 3 / k;
-			c.globalAlpha = 1;
+			c.globalAlpha = n.dim ? 0.5 : 1;
 			c.lineWidth = 3 / k;
 			c.strokeStyle = col["paper"]!;
 			c.strokeText(label, n.x, y);
 			c.fillStyle = n === hv ? col["ink"]! : col["graphite"]!;
 			c.fillText(label, n.x, y);
+		}
+		// ホバー中のノードにつながる線の名前（指揮・報告など）
+		if (hv) {
+			c.textBaseline = "middle";
+			for (const [p, q, e] of this.edges) {
+				if (!e.label || (p !== hv && q !== hv)) continue;
+				const mx = (p.x + q.x) / 2;
+				const my = (p.y + q.y) / 2;
+				c.globalAlpha = 1;
+				c.lineWidth = 3 / k;
+				c.strokeStyle = col["paper"]!;
+				c.strokeText(e.label, mx, my);
+				c.fillStyle = col["focus"]!;
+				c.fillText(e.label, mx, my);
+			}
 		}
 		c.globalAlpha = 1;
 	}

@@ -21,6 +21,30 @@ export type Item = {
 	prep?: TaskPrep;
 };
 
+/** memory/people/ の人物ノート（関係者）。relation は本文の `- <relation> [[相手]]` の行 */
+export type PersonNote = {
+	path: string;
+	name: string;
+	fm: Frontmatter;
+	rels: { rel: string; to: string }[];
+	/** `## Observations` の先頭の数行（プロフィールの材料） */
+	profile: string[];
+	mtime: number;
+};
+
+/** memory/pj/ のプロジェクトノート（type: pj）。`## 関係者` の行を読んだもの */
+export type PjNote = {
+	path: string;
+	name: string;
+	fm: Frontmatter;
+	/** `## 要約` 節の行（先頭の数行） */
+	summary: string[];
+	members: { name: string; role: string }[];
+	/** commands: from が to に指示 / reports_to: from が to に報告 / works_with: 無向 */
+	links: { rel: "commands" | "reports_to" | "works_with"; from: string; to: string; note: string }[];
+	mtime: number;
+};
+
 /** 1 日の予定（calendar/upcoming.md から） */
 export type DayPlan = {
 	date: string;
@@ -106,6 +130,10 @@ export type VaultState = {
 	docs: Item[];
 	/** ideas/ のアイデア */
 	ideas: Item[];
+	/** memory/people/ の人物（関係者タブ） */
+	people: PersonNote[];
+	/** memory/pj/ のプロジェクト（type: pj のみ） */
+	projects: PjNote[];
 	/** worker の定義（.claude/agents/*.md） */
 	agents: Item[];
 	/** research/ の下調べ（タスク 1 件に 1 ノート） */

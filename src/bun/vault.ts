@@ -3,7 +3,8 @@
 
 import { readdirSync, readFileSync, statSync, watch, existsSync } from "fs";
 import { join, relative, resolve, sep, dirname } from "path";
-import type { ActivitySpan, Doc, Frontmatter, Item, Lookahead, VaultState } from "../shared/types";
+import type { ActivitySpan, Doc, Frontmatter, Item, Lookahead, PersonNote, PjNote, VaultState } from "../shared/types";
+import { parsePerson, parsePj } from "./people";
 import { readDayPlan } from "./calendar";
 
 const KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*)\s*:(.*)$/;
@@ -108,6 +109,32 @@ export class Vault {
 			.filter((x): x is Item => x !== null);
 	}
 
+	/** memory/people/ の人物ノート（毎回ディスクから読む。起動時・監視イベント後の scan に含まれる） */
+	people(): PersonNote[] {
+		return this.listRaw("memory/people").map(({ rel, text, mtime }) => parsePerson(rel, text, mtime));
+	}
+
+	/** memory/pj/ のうち type: pj のノート */
+	projects(): PjNote[] {
+		return this.listRaw("memory/pj")
+			.map(({ rel, text, mtime }) => parsePj(rel, text, mtime))
+			.filter((x): x is PjNote => x !== null);
+	}
+
+	private listRaw(dir: string): { rel: string; text: string; mtime: number }[] {
+		const abs = join(this.root, dir);
+		if (!existsSync(abs)) return [];
+		const out: { rel: string; text: string; mtime: number }[] = [];
+		for (const f of readdirSync(abs)) {
+			if (!f.endsWith(".md") || f.startsWith(".")) continue;
+			try {
+				const p = join(abs, f);
+				out.push({ rel: relative(this.root, p), text: readFileSync(p, "utf-8"), mtime: statSync(p).mtimeMs });
+			} catch {}
+		}
+		return out;
+	}
+
 	scan(): VaultState {
 		const today = localDate();
 		const docs = ["inbox.md", "goals.md", "slack/index.md", "calendar/upcoming.md", "settings/manager-app.md"]
@@ -132,6 +159,8 @@ export class Vault {
 			jobs: this.list("jobs"),
 			docs,
 			ideas: this.list("ideas").sort((a, b) => b.name.localeCompare(a.name)),
+			people: this.people(),
+			projects: this.projects(),
 			agents: this.list(".claude/agents").sort((a, b) => a.name.localeCompare(b.name)),
 			research: this.list("research"),
 			lookahead: this.lookahead(),

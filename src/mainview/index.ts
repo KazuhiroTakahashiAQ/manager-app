@@ -6,6 +6,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { initDrop } from "./drop";
 import { IdeaGraph, type GraphEdge, type GraphNode } from "./graph";
+import { PeopleTab } from "./people-tab";
+import { PEOPLE_LABEL, PEOPLE_TAB } from "./people-view";
 import { childLabel, clampNameW, NAME_W_KEY, parseNameW } from "./wbs-name";
 import { descendantCounts,hiddenFlags, parseCollapsed, serializeCollapsed, type FoldRow } from "./wbs-fold";
 import { isRunActive, noteBusy, parseBusyAt, parseRunFold, reconcileRunFold, serializeBusyAt, serializeRunFold, setRunOpen } from "./runs-fold";
@@ -199,6 +201,7 @@ function renderBoard() {
 
 	boardEl.innerHTML = [decideHtml(s, open), selfHtml(s), prepHtml(s, notReady), ganttHtml(s), ideasHtml(s), agentsHtml(s), lowerHtml(s)].join("");
 	mountGraph();
+	peopleTab.setData(s.people, s.projects);
 	drawProgressLine();
 }
 
@@ -400,6 +403,14 @@ const graphTabEl = document.createElement("div");
 graphTabEl.className = "reader-graph";
 graphTabEl.hidden = true;
 readerEl.appendChild(graphTabEl);
+const peopleTab = new PeopleTab({
+	openNote: (path) => void openDoc(path),
+	talk: (path, text) => pasteQuote(path, "", text),
+	load,
+	store,
+});
+const peopleTabEl = peopleTab.el;
+readerEl.appendChild(peopleTabEl);
 const sheetTabEl = document.createElement("div");
 sheetTabEl.className = "reader-sheet";
 sheetTabEl.hidden = true;
@@ -475,12 +486,30 @@ function openGraphTab() {
 	readerScroll.hidden = true;
 	graphTabEl.hidden = false;
 	sheetTabEl.hidden = true;
+	peopleTab.setVisible(false);
 	readerPath.textContent = "アイデアのグラフ（アイデア・紐づくタスク・目標・PJ）";
 	$("talk-about").hidden = true;
 	$("open-obsidian").hidden = true;
 	renderDocTabs();
 	mountGraph();
 	graphTabEl.querySelector(".igraph-legend") ?? graphTabEl.insertAdjacentHTML("beforeend", GRAPH_LEGEND);
+}
+
+/** 「関係者」タブ（人物ノート・PJ の関係者をグラフと表で。中身は people-tab.ts） */
+function openPeopleTab() {
+	rememberScroll();
+	if (!docTabs.some((t) => t.path === PEOPLE_TAB)) docTabs.push({ path: PEOPLE_TAB, label: PEOPLE_LABEL, scroll: 0 });
+	current = { path: PEOPLE_TAB, fm: {}, body: "", mtime: 0 };
+	readerEl.hidden = false;
+	readerScroll.hidden = true;
+	graphTabEl.hidden = true;
+	sheetTabEl.hidden = true;
+	if (state) peopleTab.setData(state.people, state.projects);
+	peopleTab.setVisible(true);
+	readerPath.textContent = "関係者（memory/people の人物と memory/pj の関係者。グラフと表を切り替え、プロジェクトで絞る）";
+	$("talk-about").hidden = true;
+	$("open-obsidian").hidden = true;
+	renderDocTabs();
 }
 
 // ───────── エージェント（対話・worker・定期実行・アプリの見張り） ─────────
@@ -1398,6 +1427,7 @@ const isVaultPath = (p: string) => !p.startsWith("/");
 
 async function openDoc(path: string, keepScroll = false) {
 	if (path === GRAPH_TAB) return openGraphTab();
+	if (path === PEOPLE_TAB) return openPeopleTab();
 	if (path === NOW_TAB) return openNow(keepScroll);
 	if (path === SHEET_TAB) return openSheet();
 	const isReadme = path === README_TAB;
@@ -1416,6 +1446,7 @@ async function openDoc(path: string, keepScroll = false) {
 	readerScroll.hidden = false;
 	graphTabEl.hidden = true;
 	sheetTabEl.hidden = true;
+	peopleTab.setVisible(false);
 	$("talk-about").hidden = isReadme;
 	$("open-obsidian").hidden = isReadme;
 	readerPath.textContent = isReadme ? "README.md（manager-app、読み取り専用）" : isVaultPath(doc.path) ? doc.path : shortPath(doc.path);
@@ -1494,6 +1525,7 @@ async function openNow(keepScroll = false) {
 	readerScroll.hidden = false;
 	graphTabEl.hidden = true;
 	sheetTabEl.hidden = true;
+	peopleTab.setVisible(false);
 	$("talk-about").hidden = true;
 	$("open-obsidian").hidden = true;
 	readerPath.textContent = "今（読み取りのみ。決めるのは mgr、問い合わせへの返信だけここでできる）";
@@ -1523,6 +1555,7 @@ async function openSheet() {
 	readerScroll.hidden = true;
 	graphTabEl.hidden = true;
 	sheetTabEl.hidden = false;
+	peopleTab.setVisible(false);
 	$("talk-about").hidden = true;
 	$("open-obsidian").hidden = true;
 	readerPath.textContent = "シート（sheet-preview のハブ。読み取りタブ）";
@@ -1587,6 +1620,7 @@ function closeDoc() {
 	rememberScroll();
 	current = null;
 	readerEl.hidden = true;
+	peopleTab.setVisible(false);
 	renderDocTabs();
 	mountGraph(); // アイデア欄がグラフなら、そこへ戻す
 }
@@ -1614,7 +1648,8 @@ function renderDocTabs() {
 					`<button class="btab" type="button" data-btab="${esc(t.path)}" aria-current="${current?.path === t.path}" title="${esc(t.path)}"><span class="label">${esc(t.label)}</span><span class="x" data-bclose="${esc(t.path)}" title="閉じる">×</span></button>`,
 			)
 			.join("") +
-	(docTabs.some((t) => t.path === GRAPH_TAB) ? "" : `<button class="btab gopen" type="button" data-btab="${GRAPH_TAB}" title="アイデア・タスク・目標・PJ のつながりを大きく見る">アイデアのグラフ</button>`);
+	(docTabs.some((t) => t.path === GRAPH_TAB) ? "" : `<button class="btab gopen" type="button" data-btab="${GRAPH_TAB}" title="アイデア・タスク・目標・PJ のつながりを大きく見る">アイデアのグラフ</button>`) +
+		(docTabs.some((t) => t.path === PEOPLE_TAB) ? "" : `<button class="btab gopen" type="button" data-btab="${PEOPLE_TAB}" title="関係者の人物と、プロジェクトでの指揮命令系統・関係をグラフと表で見る">${PEOPLE_LABEL}</button>`);
 }
 function nowBadgeHtml(): string {
 	const b = nowBadge(unansweredCount(state?.messages ?? []));
