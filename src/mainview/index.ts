@@ -7,7 +7,8 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { Clawd } from "./clawd";
 import { initDrop } from "./drop";
 import { IdeaGraph, type GraphEdge, type GraphNode } from "./graph";
-import { descendantCounts, hiddenFlags, parseCollapsed, serializeCollapsed, type FoldRow } from "./wbs-fold";
+import { childLabel, clampNameW, NAME_W_KEY, parseNameW } from "./wbs-name";
+import { descendantCounts,hiddenFlags, parseCollapsed, serializeCollapsed, type FoldRow } from "./wbs-fold";
 import { isRunActive, noteBusy, parseBusyAt, parseRunFold, reconcileRunFold, serializeBusyAt, serializeRunFold, setRunOpen } from "./runs-fold";
 import { linePosition, lineSvg, ownLinePosition, parseLineOpts, progressRatio, rolledUpPosition, type PosNode, type Pt } from "./wbs-progress";
 import { rowKindClass, runKindClass } from "./seg";
@@ -680,12 +681,12 @@ function ganttHtml(s: VaultState): string {
 	for (const r of rows) nodes.get(r.t.name)!.children = r.children.flatMap((c) => nodes.get(c.name) ?? []);
 	const kidsX = rows.map((r) => rolledUpPosition({ ...nodes.get(r.t.name)!, own: null }));
 	const body = rows.map((r, i) => ganttRow(r, plans[i]!, kidsX[i]!, s.today, from, n, stripes, kids[i]!, hidden[i]!)).join("");
-	return `<section class="gantt ${foldCls("gantt")}" data-key="gantt" style="--days:${n}">
+	return `<section class="gantt ${foldCls("gantt")}" data-key="gantt" style="--days:${n};--name-w:${nameW}px">
 		<h2 data-fold="gantt">WBS<span class="note">${esc(md5(from))}〜${esc(md5(days[n - 1]!))}。斜線は準備、帯は作業（着手〜期限）、◆は期限</span>${wbsAllHtml(fr, kids)}${rows.length ? lineOptsHtml() : ""}</h2>
 		<div class="fold-body">${
 			rows.length
 				? `<div class="gwrap${lineOpts.color ? "" : " mono"}" data-today="${daysBetween(from, s.today)}">
-					<div class="gh"><div class="gname">作業</div><div class="gdays">${head}</div></div>${body}
+					<div class="gh"><div class="gname">作業<span class="gresize" data-gresize title="ドラッグで作業列の幅を変える（ダブルクリックで既定）"></span></div><div class="gdays">${head}</div></div>${body}
 					<svg class="pline" aria-hidden="true"${lineOpts.line ? "" : ' style="display:none"'}></svg>
 				</div>
 				<div class="glegend"><span><i class="l-line"></i>進捗線（各タスクの現在位置を結ぶ）</span><span><i class="l-beh"></i>今日より左 = 予定より遅れ</span><span><i class="l-ahd"></i>今日より右 = 予定より先行</span><span><i class="l-roll"></i>塗りの丸 = 親（子のうち最も遅れている位置）</span><span>帯の塗り = 進捗の割合</span></div>`
@@ -693,6 +694,41 @@ function ganttHtml(s: VaultState): string {
 		}</div>
 	</section>`;
 }
+
+// 作業列の幅（ヘッダ右端をドラッグ。localStorage に保つ）
+let nameW = parseNameW(load(NAME_W_KEY));
+
+boardEl.addEventListener("pointerdown", (e) => {
+	const h = (e.target as HTMLElement).closest<HTMLElement>("[data-gresize]");
+	const sec = h?.closest<HTMLElement>(".gantt");
+	if (!h || !sec) return;
+	e.preventDefault();
+	const x0 = e.clientX;
+	const w0 = nameW;
+	h.setPointerCapture(e.pointerId);
+	const move = (ev: PointerEvent) => {
+		nameW = clampNameW(w0 + ev.clientX - x0);
+		sec.style.setProperty("--name-w", `${nameW}px`);
+	};
+	const up = () => {
+		h.removeEventListener("pointermove", move);
+		h.removeEventListener("pointerup", up);
+		h.removeEventListener("pointercancel", up);
+		store(NAME_W_KEY, String(nameW));
+		drawProgressLine();
+	};
+	h.addEventListener("pointermove", move);
+	h.addEventListener("pointerup", up);
+	h.addEventListener("pointercancel", up);
+});
+boardEl.addEventListener("dblclick", (e) => {
+	const sec = (e.target as HTMLElement).closest<HTMLElement>("[data-gresize]")?.closest<HTMLElement>(".gantt");
+	if (!sec) return;
+	nameW = parseNameW(null);
+	sec.style.setProperty("--name-w", `${nameW}px`);
+	store(NAME_W_KEY, String(nameW));
+	drawProgressLine();
+});
 
 // 親を畳むと子孫の行を隠す（状態は localStorage の wbsCollapsed にタスクのパスで保つ。既定は開く）
 const wbsCollapsed = parseCollapsed(load("wbsCollapsed"));
@@ -873,11 +909,13 @@ function ganttRow({ t, depth }: GanttRow, { start, due, progress }: RowPlan, kid
 
 	const term = termOfTask(t.path);
 	const mark = term ? (term.active ? '<span class="mk busy" title="作業中"></span>' : term.unread ? '<span class="mk unread" title="返事あり"></span>' : '<span class="mk room" title="sub mgr あり"></span>') : "";
+	// 子は「親名_」の接頭辞を除いた自分の作業名だけ出す（階層はインデントと wbs 番号で示す）
+	const label = depth > 0 ? childLabel(titleOf(t), parentOf(t)) : titleOf(t);
 	return `<div class="grow${closed ? " closed" : ""}${term && term.id === currentId ? " active" : ""}" data-wbs="${esc(t.path)}" data-depth="${depth}"${hidden ? " hidden" : ""}>
 		<div class="gname" style="--depth:${depth}">
-			${wbsToggleHtml(t.path, titleOf(t), kids)}
+			${wbsToggleHtml(t.path, label, kids)}
 			<span class="code">${esc(fm(t, "wbs"))}</span>
-			<button class="open" type="button" data-open="${esc(t.path)}" title="${esc(fm(t, "next_action"))}">${mark}<span class="ready ready-${r}" title="${r}"></span>${esc(titleOf(t))}</button>
+			<button class="open" type="button" data-open="${esc(t.path)}" title="${esc(fm(t, "next_action"))}">${mark}<span class="ready ready-${r}" title="${r}"></span><span class="gtitle" title="${esc(titleOf(t))}">${esc(label)}</span></button>
 			${kids ? `<span class="gkids" title="子孫 ${kids} 件（孫以降を含む）">${kids}</span>` : ""}
 			${taskBadges(t)}
 			${closed ? "" : `<span class="acts"><button class="ask" type="button" data-ask="${esc(t.path)}">話す</button>${term ? `<button class="deep" type="button" data-deep="${esc(t.path)}">sub mgr</button>` : ""}</span>`}

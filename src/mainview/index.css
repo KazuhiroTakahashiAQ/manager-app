@@ -927,7 +927,7 @@ button.side:hover {
 
 /* ───── ガントチャート（WBS） ───── */
 .gantt {
-	--name-w: minmax(200px, 300px);
+	--name-w: 380px; /* 既定。ヘッダのリサイザで変え、index.ts が style で上書きする */
 }
 .gh,
 .grow {
@@ -3092,4 +3092,38 @@ body.dnd-active .clawd {
 	color: #e6eadf;
 	background: rgba(255, 255, 255, 0.09);
 	border-color: #5d6a58;
+}
+
+/* WBS: 作業名の省略とリサイザ */
+.grow .open .gtitle {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.gh .gname {
+	position: relative;
+}
+.gh .gresize {
+	position: absolute;
+	top: 0;
+	right: -3px;
+	bottom: 0;
+	width: 7px;
+	cursor: col-resize;
+	touch-action: none;
+	z-index: 2;
+}
+.gh .gresize::after {
+	content: "";
+	position: absolute;
+	top: 20%;
+	bottom: 20%;
+	left: 3px;
+	width: 1px;
+	background: var(--rule);
+}
+.gh .gresize:hover::after {
+	width: 2px;
+	left: 2px;
+	background: var(--focus);
 }
