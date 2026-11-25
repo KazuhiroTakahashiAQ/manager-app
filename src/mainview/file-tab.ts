@@ -102,7 +102,9 @@ export class FileTab {
 
 	/** cwd が変わっていたら、そこへ追従する（今いる場所が前の cwd のままのときだけ） */
 	private async refreshCwd(s: State) {
-		const { cwd, live } = await this.fetchCwd(s);
+		const r = await this.fetchCwd(s);
+		if (!r) return;
+		const { cwd, live } = r;
 		if (cwd !== s.cwd) {
 			const following = s.dir === s.cwd;
 			s.cwd = cwd;
@@ -112,21 +114,28 @@ export class FileTab {
 	}
 
 	private async resetToCwd(s: State) {
-		const { cwd, live } = await this.fetchCwd(s);
+		const r = await this.fetchCwd(s);
+		if (!r) return this.noRpc(s);
+		const { cwd, live } = r;
 		s.cwd = cwd;
 		s.live = live;
 		await this.load(s, cwd);
 	}
 
-	private async fetchCwd(s: State): Promise<{ cwd: string; live: boolean }> {
-		let r: { cwd: string; live: boolean };
+	/** bun が応答しない（再起動前の古い bun など）ときは null。`/` に倒さない */
+	private async fetchCwd(s: State): Promise<{ cwd: string; live: boolean } | null> {
 		try {
-			r = await this.api.filesCwd({ id: s.id });
+			const r = await this.api.filesCwd({ id: s.id });
+			s.cwdAt = Date.now();
+			return r.cwd ? r : null;
 		} catch {
-			r = { cwd: s.cwd || "/", live: false }; // bun が応答しない: 前回の場所（なければ /）で出す
+			return null;
 		}
-		s.cwdAt = Date.now();
-		return r;
+	}
+
+	private noRpc(s: State) {
+		s.error = "File の取得に失敗（bun が古い可能性。アプリの再起動で直る）";
+		this.render(s);
 	}
 
 	private async load(s: State, dir: string, select?: string) {

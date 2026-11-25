@@ -59,6 +59,17 @@ describe("resolveInput", () => {
 });
 
 describe("claudeCwd", () => {
+	test("実機の lsof 出力（警告は stderr。空白入りパス）を読む", () => {
+		const real = "p13264\nfcwd\nn/Users/kazuhiro.takahashi/Documents/Obsidian Vault/Manager\n";
+		expect(parseLsofCwd(real)).toBe("/Users/kazuhiro.takahashi/Documents/Obsidian Vault/Manager");
+		expect(parseLsofCwd("p1\nfcwd\nn\n")).toBeNull();
+	});
+	test("失敗系のフォールバックは空にも / にもならない", async () => {
+		for (const out of ["", "p1\nfcwd\n", "garbage"]) {
+			const r = await claudeCwd(1, "/Vault/Manager", () => Promise.resolve(out), () => true);
+			expect(r).toEqual({ cwd: "/Vault/Manager", live: false });
+		}
+	});
 	test("lsof の出力を読む", () => {
 		expect(parseLsofCwd("p123\nfcwd\nn/Users/x/proj\n")).toBe("/Users/x/proj");
 		expect(parseLsofCwd("")).toBeNull();

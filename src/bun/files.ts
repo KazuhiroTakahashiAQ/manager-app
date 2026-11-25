@@ -19,14 +19,18 @@ export async function claudeCwd(
 	run: (pid: number) => Promise<string> = lsofCwd,
 	exists: (p: string) => boolean = existsSync,
 ): Promise<{ cwd: string; live: boolean }> {
+	let why = "pid なし";
 	if (pid != null) {
 		try {
-			const cwd = parseLsofCwd(await run(pid));
+			const out = await run(pid);
+			const cwd = parseLsofCwd(out);
 			if (cwd && exists(cwd)) return { cwd, live: true };
-		} catch {
-			/* フォールバック */
+			why = cwd ? `cwd が存在しない: ${cwd}` : `lsof の出力に cwd なし: ${JSON.stringify(out.slice(0, 120))}`;
+		} catch (e) {
+			why = `lsof 失敗: ${e}`;
 		}
 	}
+	console.warn(`[files] claude の cwd を取れず ${fallback} にフォールバック（pid=${pid}, ${why}）`);
 	return { cwd: fallback, live: false };
 }
 
