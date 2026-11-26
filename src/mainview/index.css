@@ -3396,3 +3396,224 @@ body.dnd-active .dock {
 	border-left: 0;
 	padding: 4px 6px 4px 16px;
 }
+
+/* File タブを Explorer 風に作り直し（上書き。落ち着いたトーン） */
+.filetab {
+	padding: 0;
+	gap: 0;
+	background: #1b201c;
+}
+.ft-bar {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 8px;
+	border-bottom: 1px solid #2d352c;
+}
+.ft-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 26px;
+	height: 24px;
+	padding: 0 6px;
+	color: #b6bfae;
+	background: none;
+	border: 1px solid transparent;
+	border-radius: 5px;
+}
+.ft-btn:hover:not(:disabled) {
+	background: rgba(255, 255, 255, 0.08);
+	color: #e6eadf;
+}
+.ft-btn:disabled {
+	opacity: 0.35;
+}
+.ft-btn.ft-txt {
+	font-size: 11px;
+}
+.ft-btn[aria-pressed="true"] {
+	background: rgba(120, 160, 190, 0.22);
+	color: #e6eadf;
+}
+.ft-addr {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	height: 24px;
+	padding: 0 4px;
+	background: rgba(0, 0, 0, 0.28);
+	border: 1px solid #2d352c;
+	border-radius: 5px;
+	cursor: text;
+}
+.ft-addr:hover {
+	border-color: #4a5547;
+}
+.ft-crumbs {
+	flex-wrap: nowrap;
+	overflow: hidden;
+	direction: rtl; /* 長いパスは先頭側を切り、いまいる階層を見せる */
+	justify-content: flex-end;
+	min-width: 0;
+	flex: 1;
+}
+.ft-crumbs > * {
+	direction: ltr;
+	flex: none;
+}
+.ft-crumb {
+	padding: 1px 5px;
+}
+.ft-crumb:first-child + .ft-crumb::before {
+	content: "›";
+	margin-right: 4px;
+}
+.ft-crumb + .ft-crumb::before {
+	content: "›";
+	margin-right: 4px;
+	color: #5d6a58;
+}
+.ft-crumb:first-child + .ft-crumb::before {
+	content: "";
+	margin: 0;
+}
+.ft-input {
+	flex: 1;
+	min-width: 0;
+	padding: 0;
+	background: none;
+	border: 0;
+	outline: none;
+}
+.ft-msg {
+	flex: none;
+	padding: 3px 10px;
+	font-size: 11px;
+}
+.ft-body {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+.ft-main {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+.ft-head {
+	flex: none;
+	display: grid;
+	grid-template-columns: minmax(120px, 1fr) 130px 110px 72px;
+	border-bottom: 1px solid #2d352c;
+}
+.ft-h {
+	padding: 4px 8px;
+	text-align: left;
+	color: #8f9988;
+	background: none;
+	border: 0;
+	font-size: 11px;
+	white-space: nowrap;
+}
+.ft-h:hover {
+	color: #e6eadf;
+	background: rgba(255, 255, 255, 0.05);
+}
+.ft-h-size {
+	text-align: right;
+}
+.ft-list {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+}
+.ft-row {
+	display: grid;
+	grid-template-columns: minmax(120px, 1fr) 130px 110px 72px;
+	align-items: center;
+	padding: 0;
+	border-radius: 0;
+	line-height: 22px;
+}
+.ft-row:hover {
+	background: rgba(255, 255, 255, 0.05);
+}
+.ft-row[aria-selected="true"] {
+	background: rgba(120, 160, 190, 0.22);
+}
+.filetab:focus-within .ft-row[aria-selected="true"] {
+	background: rgba(120, 160, 190, 0.34);
+}
+.ft-c {
+	padding: 0 8px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.ft-name {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: initial;
+}
+.ft-name > span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.ft-ico {
+	flex: none;
+}
+.ft-mtime,
+.ft-kind,
+.ft-size {
+	color: #8f9988;
+	font-size: 11px;
+}
+.ft-size {
+	text-align: right;
+}
+.ft-status {
+	flex: none;
+	padding: 3px 10px;
+	color: #8f9988;
+	font-size: 11px;
+	border-top: 1px solid #2d352c;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.ft-menu {
+	position: absolute;
+	z-index: 30;
+	min-width: 150px;
+	padding: 4px;
+	background: #262d25;
+	border: 1px solid #4a5547;
+	border-radius: 6px;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.ft-menu[hidden] {
+	display: none;
+}
+.ft-menu button {
+	display: block;
+	width: 100%;
+	padding: 4px 10px;
+	text-align: left;
+	color: #dfe4d8;
+	background: none;
+	border: 0;
+	border-radius: 4px;
+	font-size: 12px;
+}
+.ft-menu button:hover {
+	background: rgba(120, 160, 190, 0.3);
+}
+.ft-crumbs[hidden],
+.ft-input[hidden] {
+	display: none;
+}
