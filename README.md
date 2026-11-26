@@ -84,10 +84,10 @@ Obsidian vault の `Manager/`（manager = Claude Code が管理するタスク�
 ### File タブ（claude の cwd 起点のファイル一覧）
 
 - 起点はそのタブの claude プロセスの cwd（`lsof -a -p <pid> -d cwd -Fn`。取れなければ `Manager/`）。File タブを開いたとき・cwd ボタン・30 秒より古いときの再表示で取り直す（常時ポーリングなし）。タブ（mgr / sub mgr）を切り替えると、そのタブの cwd に追従する。
-- パンくず（クリックで上階層）・1 階層リスト・パス入力欄（絶対 / `~` / cwd 起点の相対。なければ短くエラー）。行の操作は 開く（既定アプリ）/ Finder / パスコピー。隠しファイルは `.*` ボタンで切り替え（既定は非表示）。
-- キー: ↑↓ 選択、Enter で開く・入る、Space で `qlmanage -p`（もう一度 Space か Esc で閉じる。別タブへ移っても閉じる）、Backspace で上へ。
+- Explorer 風（UI の構成は file-explorer-mac〈Apache-2.0〉を参考にした。コードは複製していない）。上にツールバー: 戻る / 進む / 上へ・アドレスバー（パンくずをクリック＝階層へ、余白をクリック＝パス入力。絶対 / `~` / cwd 起点の相対。なければ短くエラー）・cwd に戻る・再読み込み・`.*`（隠しファイル。既定は非表示）。左に**フォルダツリー**（根は 起点 / ホーム / `/`。開くときに子を遅延読み込み。表示中のフォルダまで自動で開き、一覧と同期）。右に一覧（名前 / 更新日時 / 種類 / サイズ。列見出しでソート、フォルダは常に先）。ダブルクリックで開く（フォルダは移動、ファイルは既定アプリ）、右クリックで 開く / Finder で表示 / パスをコピー。戻る・上へでは、前にいた場所の選択を復元する。
+- キー: ↑↓ Home End 選択、Alt+←/→ 戻る・進む、Enter で開く・入る、Space で `qlmanage -p`（もう一度 Space か Esc で閉じる。別タブへ移っても閉じる）、Backspace で上へ。
 - ターミナル（Claude / Shell）の出力のパス（絶対 / `~` / 相対。`path:12` は path だけで解決）は、存在するものだけ下線が出て、**Cmd+クリック**で File タブに切り替わり、該当ディレクトリ（ファイルなら親）で選択される。相対は claude の cwd 起点。検出は `src/shared/path-links.ts`、存在確認は RPC `filesProbe`（cwd は 5 秒、結果は 10 秒キャッシュ）、xterm の link provider は `src/mainview/term-links.ts`。折り返した行をまたぐパスは拾わない。
-- 読み取りと open / reveal / qlmanage だけ（削除・移動・書き込みなし）。`src/bun/files.ts`、RPC `filesCwd` / `filesList` / `filesResolve` / `filesReveal` / `filesQuickLook` / `filesQuickLookClose`、画面は `src/mainview/file-tab.ts`。
+- 読み取りと open / reveal / qlmanage だけ（削除・移動・書き込みなし）。`src/bun/files.ts`、RPC `filesCwd` / `filesList` / `filesResolve` / `filesReveal` / `filesQuickLook` / `filesQuickLookClose`、画面は `src/mainview/file-tab.ts`（表示用の純関数は `file-format.ts`）。画面側のみの変更なので reload で反映される。
 
 - シェルを出している間にダッシュボードから「貼る」「1 行打つ」（スラッシュコマンド等）をすると、先に claude に戻してから送る。
 - 反映には再起動が要る（bun 側の変更）。テスト: `pnpm test`（`src/bun/shell.test.ts`）。
