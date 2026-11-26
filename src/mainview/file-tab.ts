@@ -16,6 +16,35 @@ export type FileApi = {
 	openPath(p: { path: string }): Promise<{ ok: boolean }>;
 };
 
+export type TreeRoot = { label: string; path: string };
+
+/** ツリーの根（起点 / ホーム / /）。重複するパスは先のものだけ残す */
+export function treeRoots(cwd: string, home: string): TreeRoot[] {
+	const out: TreeRoot[] = [];
+	const add = (label: string, path: string) => {
+		if (path && !out.some((r) => r.path === path)) out.push({ label, path });
+	};
+	add(`${cwd.split("/").filter(Boolean).pop() ?? "/"}（起点）`, cwd);
+	add("ホーム", home);
+	add("/", "/");
+	return out;
+}
+
+/** dir を表示するとき開いておく祖先（根を除く、根より下の階層）。根は dir を含む最も深いもの */
+export function ancestorsToOpen(dir: string, roots: TreeRoot[]): { root: TreeRoot; open: string[] } | null {
+	const hit = roots
+		.filter((r) => dir === r.path || dir.startsWith(r.path === "/" ? "/" : `${r.path}/`))
+		.sort((a, b) => b.path.length - a.path.length)[0];
+	if (!hit) return null;
+	const open = [hit.path];
+	let acc = hit.path === "/" ? "" : hit.path;
+	for (const part of dir.slice(hit.path === "/" ? 1 : hit.path.length + 1).split("/").filter(Boolean)) {
+		acc += `/${part}`;
+		if (acc !== dir) open.push(acc);
+	}
+	return { root: hit, open };
+}
+
 /** パンくずの区間（先頭は "/"）。クリックでその階層へ */
 export function crumbs(path: string): { name: string; path: string }[] {
 	const out = [{ name: "/", path: "/" }];
@@ -60,6 +89,8 @@ type State = {
 	hi: number;
 	/** ディレクトリごとに最後に選んでいた名前（戻る・上へで復元） */
 	memory: Map<string, string>;
+	/** ツリーで開いているフォルダ */
+	open: Set<string>;
 };
 const RELOAD_CWD_MS = 30_000;
 const MAX_ROWS = 3000;
@@ -72,6 +103,11 @@ export class FileTab {
 	private qlOpen = false;
 	private editing = false;
 	private view: FileEntry[] = [];
+	private home = "";
+	/** ツリー用: フォルダ → 子フォルダ（遅延読み込み。隠しファイルの切り替え・再読み込みで捨てる） */
+	private kids = new Map<string, { name: string; path: string }[]>();
+	private kidsLoading = new Map<string, Promise<void>>();
+	private tree: HTMLElement;
 	private crumbEl: HTMLElement;
 	private input: HTMLInputElement;
 	private msg: HTMLElement;
@@ -97,9 +133,10 @@ export class FileTab {
 			`<button type="button" class="ft-btn" data-act="reload" title="再読み込み">${I_RELOAD}</button>` +
 			`<button type="button" class="ft-btn ft-txt" data-act="hidden" title="隠しファイルの表示" aria-pressed="false">.*</button></div>` +
 			`<div class="ft-msg" role="status"></div>` +
-			`<div class="ft-body"><div class="ft-main"><div class="ft-head" role="row"></div>` +
+			`<div class="ft-body"><div class="ft-tree" role="tree" aria-label="フォルダー"></div><div class="ft-main"><div class="ft-head" role="row"></div>` +
 			`<div class="ft-list" role="listbox"></div></div></div>` +
 			`<div class="ft-status"></div><div class="ft-menu" hidden></div>`;
+		this.tree = el.querySelector(".ft-tree")!;
 		this.crumbEl = el.querySelector(".ft-crumbs")!;
 		this.input = el.querySelector(".ft-input")!;
 		this.msg = el.querySelector(".ft-msg")!;
@@ -128,7 +165,7 @@ export class FileTab {
 	private st(): State {
 		let s = this.states.get(this.id);
 		if (!s) {
-			s = { id: this.id, cwd: "", live: true, cwdAt: 0, dir: "", entries: [], sel: null, error: "", loaded: false, hist: [], hi: -1, memory: new Map() };
+			s = { id: this.id, cwd: "", live: true, cwdAt: 0, dir: "", entries: [], sel: null, error: "", loaded: false, hist: [], hi: -1, memory: new Map(), open: new Set() };
 			this.states.set(this.id, s);
 		}
 		return s;
@@ -369,6 +406,10 @@ export class FileTab {
 			else void this.copy(path);
 			return;
 		}
+		const tw = t.closest<HTMLElement>("[data-twist]");
+		if (tw) return void this.toggleNode(s, tw.dataset.twist!);
+		const tn = t.closest<HTMLElement>("[data-tp]");
+		if (tn) return void this.visit(s, tn.dataset.tp!).then(() => this.el.focus());
 		const crumb = t.closest<HTMLElement>("[data-path]");
 		if (crumb) return void this.visit(s, crumb.dataset.path!);
 		const sortBy = t.closest<HTMLElement>("[data-sort]");
@@ -383,8 +424,12 @@ export class FileTab {
 			const a = act.dataset.act;
 			if (a === "hidden") {
 				this.hidden = !this.hidden;
+				this.kids.clear();
 				void this.load(s, s.dir || s.cwd, s.sel);
-			} else if (a === "reload") void this.load(s, s.dir || s.cwd, s.sel);
+			} else if (a === "reload") {
+				this.kids.clear();
+				void this.load(s, s.dir || s.cwd, s.sel);
+			}
 			else if (a === "cwd") void this.resetToCwd(s);
 			else if (a === "back") void this.step(-1);
 			else if (a === "fwd") void this.step(1);
@@ -407,6 +452,71 @@ export class FileTab {
 		} catch {
 			this.msg.textContent = "コピーできなかった";
 		}
+	}
+
+	private roots(s: State): TreeRoot[] {
+		return treeRoots(s.cwd || s.dir, this.home);
+	}
+
+	private async loadKids(path: string) {
+		if (this.kids.has(path)) return;
+		let p = this.kidsLoading.get(path);
+		if (!p) {
+			p = this.api
+				.filesList({ path, hidden: this.hidden })
+				.then((r) => void this.kids.set(path, r.ok ? r.entries.filter((e) => e.dir).map((e) => ({ name: e.name, path: e.path })) : []))
+				.catch(() => void this.kids.set(path, []))
+				.finally(() => void this.kidsLoading.delete(path));
+			this.kidsLoading.set(path, p);
+		}
+		await p;
+	}
+
+	private async toggleNode(s: State, path: string) {
+		if (s.open.has(path)) s.open.delete(path);
+		else {
+			s.open.add(path);
+			await this.loadKids(path);
+		}
+		this.renderTree(s);
+	}
+
+	/** いまのフォルダまでの祖先を開き、子を遅延で読む。ホームの場所は初回だけ取る */
+	private async syncTree(s: State) {
+		if (!this.home) {
+			const r = await this.api.filesResolve({ input: "~", base: "/" }).catch(() => null);
+			this.home = r?.ok && r.path ? r.path : "";
+		}
+		const a = ancestorsToOpen(s.dir, this.roots(s));
+		if (a) for (const o of a.open) s.open.add(o);
+		this.renderTree(s);
+		if (a) {
+			for (const o of a.open) await this.loadKids(o);
+			this.renderTree(s);
+			this.tree.querySelector(".ft-node[aria-selected='true']")?.scrollIntoView({ block: "nearest" });
+		}
+	}
+
+	private renderTree(s: State) {
+		if (s.id !== this.id) return;
+		const roots = this.roots(s);
+		const cur = ancestorsToOpen(s.dir, roots)?.root.path;
+		const node = (label: string, path: string, depth: number, isRoot: boolean, selectedHere: boolean): string => {
+			const open = s.open.has(path);
+			const kids = this.kids.get(path);
+			const mark = open ? "▾" : "▸";
+			let h =
+				`<div class="ft-node" role="treeitem" data-tp="${esc(path)}" style="padding-left:${6 + depth * 12}px" aria-selected="${selectedHere && path === s.dir}">` +
+				`<span class="ft-twist" data-twist="${esc(path)}">${mark}</span>${glyph({ name: label, dir: true })}<span class="ft-nlabel">${esc(label)}</span></div>`;
+			if (open && kids) {
+				const MAX = 500;
+				for (const k of kids.slice(0, MAX)) h += node(k.name, k.path, depth + 1, false, selectedHere);
+				if (kids.length > MAX) h += `<div class="ft-more" style="padding-left:${6 + (depth + 1) * 12}px">他 ${kids.length - MAX} 件</div>`;
+			} else if (open && !kids) h += `<div class="ft-more" style="padding-left:${6 + (depth + 1) * 12}px">…</div>`;
+			void isRoot;
+			return h;
+		};
+		this.tree.innerHTML = roots.map((r) => node(r.label, r.path, 0, true, r.path === cur)).join("");
 	}
 
 	private render(st?: State) {
@@ -449,6 +559,7 @@ export class FileTab {
 					.join("")
 			: `<div class="ft-empty">${s.loaded ? "このフォルダーは空" : s.error ? "" : "読み込み中…"}</div>`;
 		this.list.scrollTop = top;
+		void this.syncTree(s);
 		const more = this.view.length > MAX_ROWS ? `（先頭 ${MAX_ROWS} 件を表示）` : "";
 		this.status.textContent = s.loaded ? `${this.view.length} 項目${more}${s.sel ? ` ・ 選択: ${s.sel}` : ""}` : "";
 	}

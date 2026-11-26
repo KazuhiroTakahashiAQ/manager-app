@@ -3617,3 +3617,46 @@ body.dnd-active .dock {
 .ft-input[hidden] {
 	display: none;
 }
+
+/* File タブのフォルダツリー */
+.ft-tree {
+	flex: none;
+	width: 190px;
+	overflow: auto;
+	padding: 4px 0;
+	border-right: 1px solid #2d352c;
+	background: rgba(0, 0, 0, 0.12);
+}
+.ft-node {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	padding-right: 6px;
+	white-space: nowrap;
+}
+.ft-node:hover {
+	background: rgba(255, 255, 255, 0.05);
+}
+.ft-node[aria-selected="true"] {
+	background: rgba(120, 160, 190, 0.28);
+}
+.ft-twist {
+	flex: none;
+	width: 14px;
+	text-align: center;
+	color: #8f9988;
+	font-size: 10px;
+}
+.ft-twist:hover {
+	color: #e6eadf;
+}
+.ft-nlabel {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.ft-more {
+	height: 20px;
+	color: #6d7767;
+	font-size: 11px;
+}
