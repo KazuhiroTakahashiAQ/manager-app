@@ -2294,6 +2294,24 @@ function tabColors(): Map<string, string> {
 	return new Map(terms.map((t) => [t.id, t.kind === "task" ? slotColor(slots[t.id]!) : fixedColor(t.kind)]));
 }
 
+/** 領域の右辺を、選択中のタブの高さだけ切り抜く（index.css の .dock::before の clip-path） */
+function syncSelTab() {
+	const dock = document.querySelector<HTMLElement>(".dock");
+	const sel = tabsEl.querySelector<HTMLElement>('.tab[aria-current="true"]');
+	if (!dock) return;
+	if (!sel) {
+		dock.style.setProperty("--sel-a", "0px");
+		dock.style.setProperty("--sel-b", "0px");
+		return;
+	}
+	const d = dock.getBoundingClientRect().top + 6; // .dock::before の上端（margin-top 6px）
+	const r = sel.getBoundingClientRect();
+	dock.style.setProperty("--sel-a", `${Math.round(r.top + 2 - d)}px`);
+	dock.style.setProperty("--sel-b", `${Math.round(r.bottom - 2 - d)}px`);
+}
+tabsEl.addEventListener("scroll", syncSelTab);
+window.addEventListener("resize", syncSelTab);
+
 function renderTabs() {
 	const now = Date.now();
 	const colors = tabColors();
@@ -2311,6 +2329,8 @@ function renderTabs() {
 		})
 		.join("");
 	tabsEl.scrollTop = keepTop;
+	syncSelTab();
+	requestAnimationFrame(syncSelTab);
 	renderStrip(now);
 	stripKey = workersKey(now);
 }

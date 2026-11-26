@@ -1741,8 +1741,7 @@ h2[data-fold]:hover {
 .dock {
 	position: relative;
 }
-.board::after,
-.dock::after {
+.board::after {
 	content: "";
 	position: absolute;
 	left: 0;
@@ -1756,9 +1755,6 @@ h2[data-fold]:hover {
 }
 .app[data-focus="board"] .board::after {
 	background: var(--focus);
-}
-.app[data-focus="term"] .dock::after {
-	background: #8fc1dc;
 }
 
 /* 役職（mgr / sub mgr / worker） */
@@ -3356,78 +3352,47 @@ body.dnd-active .dock {
 }
 
 /* ───── 縦タブとターミナルを 1 枚に見せる（Chrome のタブ風） ─────
-   ターミナル領域（.dock の左列）を選択中のタブの色（--tab-dock。タブごとに色が違う。tab-color.ts）の線で囲み、選択中のタブだけ
-   領域とつながるよう境界線を消して、タブの上・下・右も同じ線で囲む。
-   境界線は選択中でないタブ（と余白の ::after）が左端の 2px で描く。 */
+   ターミナル領域（.dock の左列）を選択中のタブの色（--tab-dock。tab-color.ts）の 2px 線で囲む。
+   領域の右辺は、選択中のタブの高さだけ clip-path で切り抜く（--sel-a / --sel-b は index.ts の syncSelTab が
+   選択中タブの位置から設定する）。選択中のタブは上・下・右を 2px のタブ色で囲み、領域とつなげる（コの字）。
+   選択中でないタブも、同じコの字を細く・薄く（タブ色の 45%）出す。 */
 .dock::before {
 	content: "";
 	grid-column: 1;
 	grid-row: 1 / -1;
 	margin: 6px 0 6px 6px;
 	border: 2px solid var(--tab-dock, var(--focus));
-	border-right: 0;
 	border-radius: 10px 0 0 10px;
 	pointer-events: none;
 	z-index: 3;
+	clip-path: polygon(
+		evenodd,
+		0 0,
+		100% 0,
+		100% 100%,
+		0 100%,
+		0 0,
+		calc(100% - 3px) var(--sel-a, 0px),
+		100% var(--sel-a, 0px),
+		100% var(--sel-b, 0px),
+		calc(100% - 3px) var(--sel-b, 0px),
+		calc(100% - 3px) var(--sel-a, 0px)
+	);
 }
 .vtabs {
-	gap: 0;
+	gap: 4px;
 	padding: 6px 6px 6px 0;
 	border-left: 0;
 }
-.vtabs::after {
-	content: "";
-	flex: 1 0 0;
-	background: linear-gradient(var(--tab-dock, var(--focus)), var(--tab-dock, var(--focus))) left / 2px 100% no-repeat;
-}
 .vtabs .tab {
-	border: 2px solid transparent;
+	border: 1px solid color-mix(in srgb, var(--tab-color, var(--focus)) 45%, transparent);
 	border-left: 0;
-	border-radius: 0;
-	padding: 4px 6px 4px 14px;
-	/* 左端 2px は領域の境界線（選択中タブの色）。その内側に、そのタブ自身の色を細い線で出す */
-	background:
-		linear-gradient(var(--tab-dock, var(--focus)), var(--tab-dock, var(--focus))) left / 2px 100% no-repeat,
-		linear-gradient(var(--tab-color, var(--focus)), var(--tab-color, var(--focus))) 6px 50% / 3px 55% no-repeat;
+	border-radius: 0 8px 8px 0;
+	padding: 5px 7px 5px 16px;
+	background: none;
 }
 .vtabs .tab[aria-current="true"] {
-	background: none;
-	border-top-color: var(--tab-color, var(--focus));
-	border-bottom-color: var(--tab-color, var(--focus));
-	border-right-color: var(--tab-color, var(--focus));
-	border-radius: 0 8px 8px 0;
-	padding-left: 14px;
-}
-
-/* 関係者タブ: 左（組織ツリー）・右（詳細）の開閉 */
-.pp-detail[hidden] {
-	display: none;
-}
-.pp-fold {
-	display: block;
-	margin: 0 0 6px auto;
-	padding: 2px 8px;
-	border: 1px solid var(--rule);
-	border-radius: 4px;
-	background: none;
-	color: var(--graphite);
-	font-size: 11.5px;
-	cursor: pointer;
-}
-.pp-fold:hover {
-	color: var(--ink);
-}
-.pp-orgs .pp-fold {
-	margin: 0 0 6px 0;
-}
-.pp-orgs.collapsed {
-	width: 30px;
-	padding: 8px 4px;
-	overflow: hidden;
-}
-.pp-orgs.collapsed .pp-fold {
-	margin: 0;
-	width: 22px;
-	padding: 2px 0;
-	text-align: center;
+	border: 2px solid var(--tab-color, var(--focus));
+	border-left: 0;
+	padding: 4px 6px 4px 16px;
 }
