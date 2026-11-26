@@ -50,18 +50,3 @@ export function sortEntries(list: FileEntry[], s: Sort): FileEntry[] {
 	};
 	return [...list].sort((a, b) => Number(b.dir) - Number(a.dir) || (cmp(a, b) || byName(a, b)) * (s.asc ? 1 : -1));
 }
-
-/** 色つきの小さな目印（種類ごと。落ち着いたトーン） */
-export function glyphColor(e: Pick<FileEntry, "name" | "dir">): string {
-	if (e.dir) return "#c9a25a";
-	switch (extOf(e.name)) {
-		case "md": case "txt": case "log": return "#8fa1b3";
-		case "pdf": return "#c9685f";
-		case "xlsx": case "xls": case "csv": case "tsv": return "#6fa47f";
-		case "docx": case "doc": return "#6f8fc9";
-		case "pptx": case "ppt": return "#c98a5f";
-		case "png": case "jpg": case "jpeg": case "gif": case "svg": case "webp": case "heic": return "#a78bc9";
-		case "ts": case "tsx": case "js": case "jsx": case "py": case "sh": case "json": case "yaml": case "yml": case "html": case "css": return "#6fb0c4";
-		default: return "#8b9488";
-	}
-}

@@ -15,6 +15,8 @@ import { ancestorsToOpen, treeRoots } from "./file-tab";
 test("ツリーの根は重複を除く（cwd がホーム直下など）", () => {
 	expect(treeRoots("/Users/a/proj", "/Users/a").map((r) => r.path)).toEqual(["/Users/a/proj", "/Users/a", "/"]);
 	expect(treeRoots("/Users/a", "/Users/a").map((r) => r.path)).toEqual(["/Users/a", "/"]);
+	expect(treeRoots("/Users/a/proj", "/Users/a").map((r) => r.label)).toEqual(["proj（起点）", "~/", "/"]);
+	expect(treeRoots("/Users/a", "/Users/a")[0]!.label).toBe("~/（起点）");
 });
 test("表示中フォルダの祖先を、最も深い根の下で開く", () => {
 	const roots = treeRoots("/Users/a/proj", "/Users/a");

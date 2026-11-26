@@ -4,7 +4,9 @@
 // 参考: file-explorer-mac（Apache-2.0）の UI の構成（ツールバー・パンくず・列・右クリック）。コードは複製していない。
 
 import type { FileEntry, FileListing, FileResolve } from "../shared/types";
-import { formatDate, formatSize, glyphColor, kindLabel, sortEntries, type Sort, type SortKey } from "./file-format";
+import { formatDate, formatSize, kindLabel, sortEntries, type Sort, type SortKey } from "./file-format";
+import { iconHtml } from "./file-icons";
+import { expandTilde, FAV_KEY, isFav, parseFavs, serializeFavs, toggleFav } from "./file-favs";
 
 export type FileApi = {
 	filesCwd(p: { id: string }): Promise<{ cwd: string; live: boolean }>;
@@ -24,8 +26,8 @@ export function treeRoots(cwd: string, home: string): TreeRoot[] {
 	const add = (label: string, path: string) => {
 		if (path && !out.some((r) => r.path === path)) out.push({ label, path });
 	};
-	add(`${cwd.split("/").filter(Boolean).pop() ?? "/"}（起点）`, cwd);
-	add("ホーム", home);
+	add(cwd === home ? "~/（起点）" : `${cwd.split("/").filter(Boolean).pop() ?? "/"}（起点）`, cwd);
+	add("~/", home);
 	add("/", "/");
 	return out;
 }
@@ -43,6 +45,21 @@ export function ancestorsToOpen(dir: string, roots: TreeRoot[]): { root: TreeRoo
 		if (acc !== dir) open.push(acc);
 	}
 	return { root: hit, open };
+}
+
+function loadFavs(): string[] {
+	try {
+		return parseFavs(localStorage.getItem(FAV_KEY));
+	} catch {
+		return parseFavs(null);
+	}
+}
+function saveFavs(paths: string[]) {
+	try {
+		localStorage.setItem(FAV_KEY, serializeFavs(paths));
+	} catch {
+		/* 保存できなくても動く */
+	}
 }
 
 /** パンくずの区間（先頭は "/"）。クリックでその階層へ */
@@ -65,13 +82,6 @@ const I_FWD = SVG('<path d="M6 3l5 5-5 5"/>');
 const I_UP = SVG('<path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/>');
 const I_RELOAD = SVG('<path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3"/>');
 const I_HOME = SVG('<path d="M2.5 8 8 3l5.5 5M4 7v6h3v-3.5h2V13h3V7"/>');
-
-function glyph(e: Pick<FileEntry, "name" | "dir">): string {
-	const c = glyphColor(e);
-	return e.dir
-		? `<svg class="ft-ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M1.5 4.2c0-.7.5-1.2 1.2-1.2h3.2l1.3 1.5h6.1c.7 0 1.2.5 1.2 1.2v6.6c0 .7-.5 1.2-1.2 1.2H2.7c-.7 0-1.2-.5-1.2-1.2z" fill="${c}"/></svg>`
-		: `<svg class="ft-ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3.5 1.5h5.8l3.2 3.2v8.6c0 .6-.4 1-1 1H3.5c-.6 0-1-.4-1-1V2.5c0-.6.4-1 1-1z" fill="none" stroke="${c}" stroke-width="1.3"/><path d="M9.3 1.5v3.2h3.2" fill="none" stroke="${c}" stroke-width="1.3"/></svg>`;
-}
 
 type State = {
 	id: string;
@@ -108,6 +118,9 @@ export class FileTab {
 	private kids = new Map<string, { name: string; path: string }[]>();
 	private kidsLoading = new Map<string, Promise<void>>();
 	private tree: HTMLElement;
+	private favs: string[] = loadFavs();
+	/** お気に入りの絶対パス → 実在するフォルダか */
+	private favOk = new Map<string, boolean>();
 	private crumbEl: HTMLElement;
 	private input: HTMLInputElement;
 	private msg: HTMLElement;
@@ -371,23 +384,37 @@ export class FileTab {
 	}
 
 	private onContext(ev: MouseEvent) {
-		const row = (ev.target as HTMLElement).closest<HTMLElement>(".ft-row[data-i]");
-		if (!row) return;
+		const t = ev.target as HTMLElement;
+		const row = t.closest<HTMLElement>(".ft-row[data-i]");
+		const node = t.closest<HTMLElement>("[data-fp], [data-tp]");
+		let path: string;
+		let dir: boolean;
+		let isFavRow = false;
+		if (row) {
+			const e = this.view[Number(row.dataset.i)];
+			if (!e) return;
+			path = e.path;
+			dir = e.dir;
+			this.st().sel = e.name;
+			this.render();
+		} else if (node) {
+			isFavRow = node.dataset.fp != null;
+			path = (node.dataset.fp ?? node.dataset.tp)!;
+			dir = true;
+		} else return;
 		ev.preventDefault();
-		const e = this.view[Number(row.dataset.i)];
-		if (!e) return;
-		this.st().sel = e.name;
-		this.render();
+		const fav = isFav(this.favs, path, this.home);
 		this.menu.innerHTML =
-			`<button type="button" data-m="open">${e.dir ? "開く（入る）" : "開く"}</button>` +
+			`<button type="button" data-m="open">${dir ? "開く（入る）" : "開く"}</button>` +
 			`<button type="button" data-m="reveal">Finder で表示</button>` +
-			`<button type="button" data-m="copy">パスをコピー</button>`;
-		this.menu.dataset.path = e.path;
-		this.menu.dataset.dir = String(e.dir);
+			`<button type="button" data-m="copy">パスをコピー</button>` +
+			(dir ? `<button type="button" data-m="fav">${fav || isFavRow ? "お気に入りから外す" : "お気に入りに追加"}</button>` : "");
+		this.menu.dataset.path = path;
+		this.menu.dataset.dir = String(dir);
 		this.menu.hidden = false;
 		const box = this.el.getBoundingClientRect();
 		const x = Math.min(ev.clientX - box.left, box.width - 170);
-		const y = Math.min(ev.clientY - box.top, box.height - 100);
+		const y = Math.min(ev.clientY - box.top, box.height - 120);
 		this.menu.style.left = `${Math.max(4, x)}px`;
 		this.menu.style.top = `${Math.max(4, y)}px`;
 	}
@@ -402,12 +429,15 @@ export class FileTab {
 			if (m.dataset.m === "open") {
 				if (this.menu.dataset.dir === "true") void this.visit(s, path);
 				else void this.api.openPath({ path });
-			} else if (m.dataset.m === "reveal") void this.api.filesReveal({ path });
+			} else if (m.dataset.m === "fav") void this.toggleFavorite(path);
+			else if (m.dataset.m === "reveal") void this.api.filesReveal({ path });
 			else void this.copy(path);
 			return;
 		}
 		const tw = t.closest<HTMLElement>("[data-twist]");
 		if (tw) return void this.toggleNode(s, tw.dataset.twist!);
+		const fv = t.closest<HTMLElement>("[data-fp]");
+		if (fv) return void this.visit(s, fv.dataset.fp!).then(() => this.el.focus());
 		const tn = t.closest<HTMLElement>("[data-tp]");
 		if (tn) return void this.visit(s, tn.dataset.tp!).then(() => this.el.focus());
 		const crumb = t.closest<HTMLElement>("[data-path]");
@@ -472,6 +502,24 @@ export class FileTab {
 		await p;
 	}
 
+	private async toggleFavorite(abs: string) {
+		this.favs = toggleFav(this.favs, abs, this.home);
+		saveFavs(this.favs);
+		await this.checkFavs();
+		this.renderTree(this.st());
+	}
+
+	/** お気に入りの実在確認（なければ薄く出す）。壊れない */
+	private async checkFavs() {
+		await Promise.all(
+			this.favs.map(async (p) => {
+				const abs = expandTilde(p, this.home);
+				const r = await this.api.filesResolve({ input: abs, base: "/" }).catch(() => null);
+				this.favOk.set(abs, Boolean(r?.ok && r.dir));
+			}),
+		);
+	}
+
 	private async toggleNode(s: State, path: string) {
 		if (s.open.has(path)) s.open.delete(path);
 		else {
@@ -486,6 +534,7 @@ export class FileTab {
 		if (!this.home) {
 			const r = await this.api.filesResolve({ input: "~", base: "/" }).catch(() => null);
 			this.home = r?.ok && r.path ? r.path : "";
+			await this.checkFavs();
 		}
 		const a = ancestorsToOpen(s.dir, this.roots(s));
 		if (a) for (const o of a.open) s.open.add(o);
@@ -507,7 +556,7 @@ export class FileTab {
 			const mark = open ? "▾" : "▸";
 			let h =
 				`<div class="ft-node" role="treeitem" data-tp="${esc(path)}" style="padding-left:${6 + depth * 12}px" aria-selected="${selectedHere && path === s.dir}">` +
-				`<span class="ft-twist" data-twist="${esc(path)}">${mark}</span>${glyph({ name: label, dir: true })}<span class="ft-nlabel">${esc(label)}</span></div>`;
+				`<span class="ft-twist" data-twist="${esc(path)}">${mark}</span>${iconHtml(label, true, open)}<span class="ft-nlabel">${esc(label)}</span></div>`;
 			if (open && kids) {
 				const MAX = 500;
 				for (const k of kids.slice(0, MAX)) h += node(k.name, k.path, depth + 1, false, selectedHere);
@@ -516,7 +565,19 @@ export class FileTab {
 			void isRoot;
 			return h;
 		};
-		this.tree.innerHTML = roots.map((r) => node(r.label, r.path, 0, true, r.path === cur)).join("");
+		const favRows = this.favs
+			.map((p) => {
+				const abs = expandTilde(p, this.home);
+				const ok = this.favOk.get(abs) !== false;
+				const name = abs.split("/").filter(Boolean).pop() ?? "/";
+				return `<div class="ft-node ft-fav" data-fp="${esc(abs)}" title="${esc(abs)}" data-missing="${!ok}" aria-selected="${abs === s.dir}" style="padding-left:6px"><span class="ft-twist"></span>${iconHtml(name, true)}<span class="ft-nlabel">${esc(name)}</span></div>`;
+			})
+			.join("");
+		const head = (l: string) => `<div class="ft-sec">${l}</div>`;
+		this.tree.innerHTML =
+			(favRows ? head("お気に入り") + favRows : "") +
+			head("フォルダー") +
+			roots.map((r) => node(r.label, r.path, 0, true, r.path === cur)).join("");
 	}
 
 	private render(st?: State) {
@@ -551,7 +612,7 @@ export class FileTab {
 					.map(
 						(e, i) =>
 							`<div class="ft-row" role="option" data-i="${i}" aria-selected="${e.name === s.sel}">` +
-							`<span class="ft-c ft-name">${glyph(e)}<span>${esc(e.name)}</span></span>` +
+							`<span class="ft-c ft-name">${iconHtml(e.name, e.dir)}<span>${esc(e.name)}</span></span>` +
 							`<span class="ft-c ft-mtime">${formatDate(e.mtime)}</span>` +
 							`<span class="ft-c ft-kind">${esc(kindLabel(e))}</span>` +
 							`<span class="ft-c ft-size">${e.dir ? "" : formatSize(e.size)}</span></div>`,
